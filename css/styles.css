@@ -402,6 +402,9 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .slot.filled{position:relative; border-style:solid; padding:12px; background:linear-gradient(160deg,var(--panel),var(--panel-2))}
 .slot.filled img{width:80px; height:80px; image-rendering:pixelated}
 .slot-name{font-weight:700; text-transform:capitalize}
+.mega-tag{display:inline-block; font-size:10px; font-weight:800; text-transform:none; letter-spacing:.2px;
+  color:var(--gold); background:color-mix(in srgb, var(--gold) 18%, transparent);
+  border:1px solid color-mix(in srgb, var(--gold) 45%, transparent); padding:1px 7px; border-radius:999px; vertical-align:middle}
 .slot-remove{position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%;
   background:var(--panel-2); border:1px solid var(--line); color:var(--text); cursor:pointer}
 .slot-remove:hover{background:var(--accent); color:#fff; border-color:var(--accent)}

@@ -9,6 +9,8 @@ window.Pokedex = (function () {
   const $ = (sel) => document.querySelector(sel);
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   const pad = (n) => String(n).padStart(4, "0");
+  // nomes de golpe na API vêm com hífen ("false-swipe"); quem busca digita com espaço.
+  const normSearch = (s) => s.trim().toLowerCase().replace(/[\s-]+/g, " ");
 
   function typeBadge(t) {
     return `<span class="badge" style="--c:${window.TYPE_COLOR[t]}">${window.TYPE_PT[t]}</span>`;
@@ -267,13 +269,13 @@ window.Pokedex = (function () {
     if (!mvState) return;
     const wrap = document.getElementById("mv-table");
     if (!wrap) return;
-    const q = (document.getElementById("mv-search")?.value || "").trim().toLowerCase();
+    const q = normSearch(document.getElementById("mv-search")?.value || "");
     const fMethod = document.getElementById("mv-method")?.value || "";
     const fType = document.getElementById("mv-type")?.value || "";
     const fCat = document.getElementById("mv-cat")?.value || "";
 
     const rows = mvState.list.filter(mv => {
-      if (q && !mv.name.includes(q)) return false;
+      if (q && !normSearch(mv.name).includes(q)) return false;
       if (fMethod && !mv.methods.includes(fMethod)) return false;
       const d = mvState.enrich[mv.name];
       if (fType && (!d || d.type !== fType)) return false;

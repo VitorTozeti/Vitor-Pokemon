@@ -92,6 +92,7 @@ window.Team = (function () {
       evs: z(), ivs: iv(),
       moves: [null, null, null, null], // cada: null ou {name,type,category}
       item: "",
+      mega: null, // nome da variedade mega escolhida (ex.: "charizard-mega-x") ou null
     };
   }
 
@@ -107,6 +108,7 @@ window.Team = (function () {
       const abilities = p.abilities.map(a => ({ name: a.ability.name, hidden: a.is_hidden }));
       const member = {
         name: p.name, id: p.id,
+        species: p.species ? p.species.name : p.name,
         types: p.types.map(t => t.type.name),
         base, abilities,
         moveList: window.API.normalizeMoves(p),
@@ -115,9 +117,73 @@ window.Team = (function () {
       team.members.push(member);
       save(); render();
       toast(`${cap(name)} entrou em ${team.name}!`);
+      ensureMegaForms(member);
     } catch (e) {
       toast(`Erro ao adicionar: ${e.message}`);
     }
+  }
+
+  // ---- mega evolução (mega pedra) ----
+  // Detecta, via as "varieties" da espécie na PokéAPI, quais formas mega existem (Mega X/Y
+  // incluído) pra oferecer no editor. Não bloqueia o fluxo de adicionar — roda em segundo
+  // plano e só re-renderiza se o membro ainda estiver na tela quando terminar.
+  function megaFormLabel(varietyName, speciesName) {
+    const rest = varietyName.startsWith(speciesName + "-")
+      ? varietyName.slice(speciesName.length + 1) : varietyName;
+    return rest.split("-").map(w => (w === "x" || w === "y") ? w.toUpperCase() : w === "mega" ? "Mega" : cap(w)).join(" ");
+  }
+
+  function ensureMegaForms(m) {
+    if (m.megaForms !== undefined) return; // já carregado (ou tentativa em andamento)
+    m.megaForms = [];
+    loadMegaForms(m);
+  }
+
+  async function loadMegaForms(m) {
+    try {
+      const species = await window.API.getSpecies(m.species || m.name);
+      const varieties = species.varieties || [];
+      const megas = varieties.filter(v => /-mega(-[xy])?$/.test(v.pokemon.name));
+      m.megaForms = megas.map(v => ({
+        name: v.pokemon.name,
+        id: window.API.idFromUrl(v.pokemon.url),
+        label: megaFormLabel(v.pokemon.name, species.name),
+      }));
+      save();
+      // só re-renderiza se este membro ainda estiver visível (evita "pulos" de UI)
+      const stillThere = activeTeam().members.includes(m);
+      if (stillThere) { render(); }
+    } catch { /* sem mega forms disponíveis / falha de rede: fica sem a opção */ }
+  }
+
+  async function selectMega(m, varietyName) {
+    const b = m.build;
+    b.mega = varietyName || null;
+    save(); renderEditor(); render(); renderAnalysis();
+    if (!b.mega) return;
+    if (!m.megaData) m.megaData = {};
+    if (m.megaData[b.mega]) { renderEditor(); render(); renderAnalysis(); return; }
+    try {
+      toast("Carregando mega evolução…");
+      const mp = await window.API.getPokemon(b.mega);
+      m.megaData[b.mega] = {
+        id: mp.id,
+        types: mp.types.map(t => t.type.name),
+        base: Object.fromEntries(mp.stats.map(s => [s.stat.name, s.base_stat])),
+      };
+      save();
+      if (m.build.mega === b.mega) { renderEditor(); render(); renderAnalysis(); }
+    } catch {
+      toast("Erro ao carregar a mega evolução.");
+      if (m.build.mega === varietyName) { m.build.mega = null; save(); renderEditor(); render(); renderAnalysis(); }
+    }
+  }
+
+  // forma "ativa" de um membro: a mega escolhida (se já carregada) ou a forma normal —
+  // usada pra sprite, tipos e status base em todo lugar (slots, editor, análise).
+  function activeForm(m) {
+    if (m.build && m.build.mega && m.megaData && m.megaData[m.build.mega]) return m.megaData[m.build.mega];
+    return { id: m.id, types: m.types, base: m.base };
   }
 
   function remove(name) {
@@ -133,11 +199,12 @@ window.Team = (function () {
     save(); render();
   }
 
-  // status finais calculados de um membro
+  // status finais calculados de um membro (usa os status base da MEGA quando escolhida)
   function finalStats(m) {
     const b = m.build;
+    const base = activeForm(m).base;
     return Object.fromEntries(window.STAT_KEYS.map(k =>
-      [k, window.calcStat(k, m.base[k], b.ivs[k], b.evs[k], b.level, b.nature)]));
+      [k, window.calcStat(k, base[k], b.ivs[k], b.evs[k], b.level, b.nature)]));
   }
 
   // ================= MOTOR DE ANÁLISE (time ativo) =================
@@ -146,10 +213,11 @@ window.Team = (function () {
     const members = activeTeam().members;
 
     // Defesa: por tipo atacante, quantos membros são fracos / resistem / imunes
+    // (usa os tipos da MEGA quando escolhida — mega evolução pode mudar o tipo, ex. Charizard X)
     const defense = T.map(atk => {
       let weak = 0, resist = 0, immune = 0;
       for (const m of members) {
-        const e = window.effectiveness(atk, m.types);
+        const e = window.effectiveness(atk, activeForm(m).types);
         if (e === 0) immune++; else if (e > 1) weak++; else if (e < 1) resist++;
       }
       return { type: atk, weak, resist, immune };
@@ -162,7 +230,7 @@ window.Team = (function () {
     for (const m of members) {
       const dmg = (m.build.moves || []).filter(x => x && x.type && x.category !== "status");
       if (dmg.length) { usedMoves = true; dmg.forEach(x => atkTypes.add(x.type)); }
-      else m.types.forEach(t => atkTypes.add(t)); // fallback STAB deste membro
+      else activeForm(m).types.forEach(t => atkTypes.add(t)); // fallback STAB deste membro
     }
     const coverage = T.map(def => {
       const best = [...atkTypes].reduce((mx, atk) => Math.max(mx, window.effectiveness(atk, [def])), 0);
@@ -225,12 +293,14 @@ window.Team = (function () {
       const m = team.members[i];
       if (m) {
         const nMoves = (m.build.moves || []).filter(Boolean).length;
+        const form = activeForm(m);
+        const megaTag = m.build.mega ? ` <span class="mega-tag">💎 mega</span>` : "";
         slots.push(`
           <div class="slot filled${editing === i ? " active" : ""}" data-edit="${i}">
             <button class="slot-remove" data-remove="${m.name}" title="Remover">✕</button>
-            <img src="${window.API.SPRITE(m.id)}" alt="${m.name}" onerror="this.style.visibility='hidden'">
-            <span class="slot-name">${cap(m.name)}</span>
-            <span class="card-types">${m.types.map(badge).join("")}</span>
+            <img src="${window.API.SPRITE(form.id)}" alt="${m.name}" onerror="this.style.visibility='hidden'">
+            <span class="slot-name">${cap(m.name)}${megaTag}</span>
+            <span class="card-types">${form.types.map(badge).join("")}</span>
             <span class="slot-info">${nMoves}/4 golpes · <span class="edit-hint">editar ✎</span></span>
           </div>`);
       } else {
@@ -281,6 +351,11 @@ window.Team = (function () {
     box.querySelector("#meta-send-ai").onclick = () => {
       const t = activeTeam();
       if (!t.members.length) { toast("Adicione Pokémon ao time antes de perguntar pra IA."); return; }
+      // garante que o texto digitado vai pro time AGORA (o autosave do textarea tem debounce
+      // de 300ms — clicar "enviar" logo após digitar não pode mandar a meta antiga/vazia).
+      clearTimeout(metaDebounceTimer);
+      t.meta = ta.value;
+      save();
       runAi(t, analyze());
       $("#analysis").scrollIntoView({ behavior: "smooth", block: "start" });
     };
@@ -301,6 +376,10 @@ window.Team = (function () {
   function detectMetaProfile(metaText) {
     const t = stripAccents((metaText || "").toLowerCase());
     const has = (...words) => words.some(w => t.includes(w));
+    if (has("captur", "false swipe", "investida falsa", "catch team", "pegar pokemon", "pegar pokémon")) {
+      return { label: "Captura (time pra pegar Pokémon)", mode: "captura", offense: [0, 999], bulk: [0, 999], speed: [0, 999],
+        note: "Time de captura não precisa de dano alto: o ideal é imobilizar o alvo (paralisia/sono/etc.) e baixar o HP sem nocautear — por isso a nota aqui olha pros golpes certos (Investida Falsa, paralisia/sono), não pro perfil ofensivo/bulk/velocidade." };
+    }
     if (has("trick room", "trickroom")) {
       return { label: "Trick Room", offense: [200, 999], bulk: [190, 999], speed: [0, 170],
         note: "Em Trick Room a velocidade baixa é uma vantagem, não um problema — o ideal é ter Pokémon lentos e fortes." };
@@ -331,8 +410,24 @@ window.Team = (function () {
 
   function inRange(v, [min, max]) { return v >= min && v <= max; }
 
+  // golpes usados por treinadores pra deixar o Pokémon selvagem capturável: baixar o HP
+  // sem nocautear (chip damage) e travar o alvo (status) — a análise por tipo/bulk normal
+  // não enxerga nada disso, então times de captura usam um critério à parte.
+  const CAPTURE_CHIP_MOVES = ["false-swipe", "hold-back"];
+  const CAPTURE_STATUS_MOVES = [
+    "thunder-wave", "stun-spore", "glare", "nuzzle", "spore", "sleep-powder", "hypnosis",
+    "sing", "dark-void", "grasswhistle",
+  ];
+  function teamMoveNames(team) {
+    const names = new Set();
+    team.members.forEach(m => (m.build.moves || []).forEach(mv => { if (mv) names.add(mv.name); }));
+    return names;
+  }
+
   function aiVerdict(a, team) {
     const profile = detectMetaProfile(team.meta);
+    if (profile.mode === "captura") return aiVerdictCapture(a, team, profile);
+
     const n = team.members.length;
     const reasons = { pos: [], neg: [] };
     let score = 0;
@@ -375,6 +470,44 @@ window.Team = (function () {
     return { score, tier, tierClass, profile, reasons };
   }
 
+  // time de captura: não julga por cobertura/bulk/velocidade de batalha competitiva — olha
+  // se o time tem as FERRAMENTAS certas pra pegar Pokémon selvagem (chip damage + status).
+  function aiVerdictCapture(a, team, profile) {
+    const n = team.members.length;
+    const reasons = { pos: [], neg: [] };
+    let score = 0;
+    const moveNames = teamMoveNames(team);
+
+    const hasChip = CAPTURE_CHIP_MOVES.some(x => moveNames.has(x));
+    if (hasChip) { score += 3; reasons.pos.push("tem Investida Falsa (ou golpe parecido) pra baixar o HP sem nocautear"); }
+    else reasons.neg.push("nenhum membro conhece Investida Falsa (False Swipe) — sem isso é fácil nocautear o alvo sem querer");
+
+    const hasStatus = CAPTURE_STATUS_MOVES.some(x => moveNames.has(x));
+    if (hasStatus) { score += 3; reasons.pos.push("tem golpe de paralisia/sono pra travar o alvo e facilitar a captura"); }
+    else reasons.neg.push("nenhum golpe de paralisia/sono no time (ex.: Paralisar, Hipnose, Esporo) — mais difícil garantir a captura");
+
+    // bulk ajuda a sobreviver enquanto tenta paralisar/baixar o HP do selvagem
+    if (a.bulk >= 190) { score += 2; reasons.pos.push("bulk alto — aguenta bem enquanto paralisa/baixa o HP do alvo"); }
+    else if (a.bulk >= 150) { score += 1; reasons.neg.push("bulk mediano — cuidado pra não ser nocauteado antes de paralisar o alvo"); }
+    else reasons.neg.push("bulk baixo — arriscado contra Pokémon selvagens mais fortes");
+
+    const incompleteRatio = n ? a.incomplete.length / n : 1;
+    if (incompleteRatio === 0) { score += 2; reasons.pos.push("todos os membros já têm 4 golpes definidos"); }
+    else if (incompleteRatio <= 0.34) { score += 1; reasons.neg.push(`${a.incomplete.length} membro(s) ainda sem moveset completo`); }
+    else reasons.neg.push(`${a.incomplete.length} de ${n} membros ainda sem 4 golpes — pode faltar Investida Falsa/paralisia na hora H`);
+
+    if (n < 2) reasons.neg.push("time pequeno — vale ter pelo menos 1 pra paralisar/adormecer + 1 com Investida Falsa");
+
+    score = Math.max(0, Math.min(10, Math.round(score)));
+    let tier, tierClass;
+    if (score >= 8) { tier = "Ótimo time de captura 👍"; tierClass = "good"; }
+    else if (score >= 6) { tier = "Dá pro serviço, com espaço pra ajuste"; tierClass = "ok"; }
+    else if (score >= 4) { tier = "Mediano — falta ferramenta de captura"; tierClass = "warn"; }
+    else { tier = "Fraco pra capturar — falta paralisia/sono e/ou Investida Falsa"; tierClass = "bad"; }
+
+    return { score, tier, tierClass, profile, reasons };
+  }
+
   // guarda o último parecer pedido por time (só roda quando o treinador clica em
   // "Enviar time para a IA" — não fica recalculando sozinho a cada tecla/EV/golpe).
   const aiRuns = {}; // teamId -> { snapshot, result }
@@ -405,11 +538,16 @@ window.Team = (function () {
     const evTotal = window.STAT_KEYS.reduce((a, k) => a + b.evs[k], 0);
 
     ensureEnrich(m);
+    ensureMegaForms(m);
+    const form = activeForm(m);
 
     const abilityOpts = m.abilities.map(a =>
       `<option value="${a.name}"${a.name === b.ability ? " selected" : ""}>${cap(a.name)}${a.hidden ? " (oculta)" : ""}</option>`).join("");
     const natureOpts = window.NATURES.map(nat =>
       `<option value="${nat.id}"${nat.id === b.nature ? " selected" : ""}>${window.natureLabel(nat.id)}</option>`).join("");
+    const megaOpts = (m.megaForms || []).length ? `
+      <option value="">Nenhuma (forma normal)</option>
+      ${m.megaForms.map(mf => `<option value="${mf.name}"${b.mega === mf.name ? " selected" : ""}>${mf.label}</option>`).join("")}` : "";
 
     const moveSlots = [0, 1, 2, 3].map(i => movePickerHTML(m, i)).join("");
 
@@ -429,10 +567,10 @@ window.Team = (function () {
 
     box.innerHTML = `
       <div class="editor-head">
-        <img src="${window.API.SPRITE(m.id)}" alt="${m.name}">
+        <img src="${window.API.SPRITE(form.id)}" alt="${m.name}">
         <div>
-          <h3>${cap(m.name)} <span class="muted">#${String(m.id).padStart(4, "0")}</span></h3>
-          <div class="card-types">${m.types.map(badge).join("")}</div>
+          <h3>${cap(m.name)}${b.mega ? ` <span class="mega-tag">💎 mega</span>` : ""} <span class="muted">#${String(form.id).padStart(4, "0")}</span></h3>
+          <div class="card-types">${form.types.map(badge).join("")}</div>
         </div>
         <button class="btn-ghost" id="editor-close">Fechar ✕</button>
       </div>
@@ -450,6 +588,9 @@ window.Team = (function () {
         <label class="fld">Item (opcional)
           <input id="f-item" type="text" placeholder="ex.: Leftovers" value="${b.item || ""}">
         </label>
+        ${megaOpts ? `<label class="fld">💎 Mega pedra (mega evolução)
+          <select id="f-mega">${megaOpts}</select>
+        </label>` : ""}
       </div>
 
       <h4>Movimentos <span class="muted">(escolha até 4 — busque por nome, filtre por método)</span>
@@ -537,10 +678,14 @@ window.Team = (function () {
       </div>`;
   }
 
+  // nomes de golpe na API vêm com hífen ("false-swipe"); o treinador digita com espaço
+  // ("false swipe") — normaliza os dois pro mesmo formato antes de comparar.
+  const normSearch = (s) => s.trim().toLowerCase().replace(/[\s-]+/g, " ");
+
   function filteredMoves(m) {
-    const q = picker.q.trim().toLowerCase();
+    const q = normSearch(picker.q);
     return m.moveList.filter(mv => {
-      if (q && !mv.name.includes(q)) return false;
+      if (q && !normSearch(mv.name).includes(q)) return false;
       if (picker.method && !mv.methods.includes(picker.method)) return false;
       return true;
     });
@@ -657,6 +802,8 @@ window.Team = (function () {
     if (autoBtn) autoBtn.onclick = () => autoFillMoves(m);
     box.querySelector("#f-ability").onchange = (e) => { b.ability = e.target.value; save(); };
     box.querySelector("#f-item").oninput = (e) => { b.item = e.target.value; save(); };
+    const megaSel = box.querySelector("#f-mega");
+    if (megaSel) megaSel.onchange = (e) => selectMega(m, e.target.value || null);
     box.querySelector("#f-nature").onchange = (e) => { b.nature = e.target.value; save(); renderEditor(); renderAnalysis(); };
     box.querySelector("#f-level").onchange = (e) => {
       b.level = Math.max(1, Math.min(100, Number(e.target.value) || 100));
