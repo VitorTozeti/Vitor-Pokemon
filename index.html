@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#DC2626">
+  <title>Pokédex + Gerador de Time</title>
+  <link rel="preconnect" href="https://raw.githubusercontent.com">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="pokeball"></span>
+      <h1>Pokédex <span>+ Time</span></h1>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="dex">Pokédex</button>
+      <button class="tab" data-view="types">Tipos</button>
+      <button class="tab" data-view="team">Time <span id="team-badge" class="tab-badge">0</span></button>
+    </nav>
+  </header>
+
+  <div id="boot" class="boot">
+    <span class="pokeball spin"></span>
+    <p id="boot-status">Iniciando…</p>
+  </div>
+
+  <main>
+    <!-- ===== Pokédex ===== -->
+    <section id="view-dex" class="view active">
+      <div class="filters">
+        <input id="search" type="search" placeholder="Buscar por nome ou número…" autocomplete="off">
+        <select id="filter-type"><option value="">Todos os tipos</option></select>
+        <select id="filter-gen"><option value="">Todas as gerações</option></select>
+        <span id="count" class="count"></span>
+      </div>
+      <div id="grid" class="grid"></div>
+      <button id="load-more" class="btn-primary load-more" hidden>Carregar mais</button>
+    </section>
+
+    <!-- ===== Tipos ===== -->
+    <section id="view-types" class="view">
+      <h2>Tabela de efetividade dos tipos</h2>
+      <p class="muted">Linha = tipo do <b>ataque</b>, coluna = tipo do <b>defensor</b>.
+        <span class="lg lg-green">2</span> super-efetivo ·
+        <span class="lg lg-red">½</span> pouco efetivo ·
+        <span class="lg lg-gray">0</span> sem efeito. É a mesma tabela que alimenta a análise de time.</p>
+      <div id="typechart-wrap" class="typechart-wrap"></div>
+    </section>
+
+    <!-- ===== Time ===== -->
+    <section id="view-team" class="view">
+      <div class="team-head">
+        <h2>Meu time</h2>
+        <button id="team-clear" class="btn-ghost">Limpar time</button>
+      </div>
+      <div id="team-slots" class="team-slots"></div>
+      <h2>Análise do time</h2>
+      <div id="analysis" class="analysis"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Dados: <a href="https://pokeapi.co" target="_blank" rel="noopener">PokéAPI</a> (fair-use, cacheado localmente).</span>
+    <button id="clear-cache" class="btn-link">Limpar cache</button>
+  </footer>
+
+  <!-- modal de ficha -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <button id="modal-close" class="modal-close" aria-label="Fechar">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="js/types.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/pokedex.js"></script>
+  <script src="js/team.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

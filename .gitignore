@@ -1,0 +1,11 @@
+# Sistema
+Thumbs.db
+.DS_Store
+
+# Editores
+.vscode/
+.idea/
+
+# Node (caso migre para build no futuro)
+node_modules/
+dist/
