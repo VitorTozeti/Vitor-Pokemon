@@ -264,9 +264,14 @@ window.Team = (function () {
       <div class="ev-row">
         <span class="ev-label">${window.STAT_PT[k]}</span>
         <span class="ev-final" title="status final">${fs[k]}</span>
-        <input class="ev-input" type="number" min="0" max="${EV_MAX}" step="4" value="${b.evs[k]}" data-ev="${k}">
-        <input class="iv-input" type="number" min="0" max="${IV_MAX}" value="${b.ivs[k]}" data-iv="${k}" title="IV (0–31)">
-        <span class="ev-bar"><i style="width:${(fs[k] / 714) * 100}%"></i></span>
+        <div class="ev-slider-wrap">
+          <input class="ev-slider" type="range" min="0" max="${EV_MAX}" step="4" value="${b.evs[k]}" data-ev="${k}" title="EV (0–252)">
+          <span class="ev-slider-val" data-ev-val="${k}">${b.evs[k]}</span>
+        </div>
+        <div class="iv-slider-wrap">
+          <input class="iv-slider" type="range" min="0" max="${IV_MAX}" value="${b.ivs[k]}" data-iv="${k}" title="IV (0–31)">
+          <span class="iv-slider-val" data-iv-val="${k}">${b.ivs[k]}</span>
+        </div>
       </div>`;
 
     box.innerHTML = `
@@ -298,7 +303,7 @@ window.Team = (function () {
       <div class="moves-editor">${moveSlots}</div>
 
       <h4>Status <span class="muted">— EVs (0–252, total ${evTotal}/${EV_TOTAL}) e IVs (0–31)</span></h4>
-      <div class="ev-head"><span></span><span>Final</span><span>EV</span><span>IV</span><span></span></div>
+      <div class="ev-head"><span></span><span>Final</span><span>EV</span><span>IV</span></div>
       <div class="ev-grid">${window.STAT_KEYS.map(evRow).join("")}</div>
       ${evTotal > EV_TOTAL ? `<p class="error small">Total de EVs acima de ${EV_TOTAL}. Reduza para um build válido.</p>` : ""}
     `;
@@ -449,20 +454,31 @@ window.Team = (function () {
       b.level = Math.max(1, Math.min(100, Number(e.target.value) || 100));
       save(); renderEditor(); renderAnalysis();
     };
+    // sliders de EV/IV: atualiza ao vivo enquanto arrasta (sem re-renderizar, pra não
+    // "pular" o thumb), e só re-renderiza tudo (status final, análise) ao soltar.
     box.querySelectorAll("[data-ev]").forEach(inp => {
-      inp.onchange = (e) => {
+      inp.oninput = (e) => {
         let v = Math.max(0, Math.min(EV_MAX, Number(e.target.value) || 0));
         // respeita o teto total de 510
         const others = window.STAT_KEYS.reduce((a, k) => a + (k === inp.dataset.ev ? 0 : b.evs[k]), 0);
         v = Math.min(v, EV_TOTAL - others);
-        b.evs[inp.dataset.ev] = v; save(); renderEditor(); renderAnalysis();
+        e.target.value = v;
+        b.evs[inp.dataset.ev] = v;
+        const valSpan = box.querySelector(`[data-ev-val="${inp.dataset.ev}"]`);
+        if (valSpan) valSpan.textContent = v;
+        save();
       };
+      inp.onchange = () => { renderEditor(); renderAnalysis(); };
     });
     box.querySelectorAll("[data-iv]").forEach(inp => {
-      inp.onchange = (e) => {
-        b.ivs[inp.dataset.iv] = Math.max(0, Math.min(IV_MAX, Number(e.target.value) || 0));
-        save(); renderEditor(); renderAnalysis();
+      inp.oninput = (e) => {
+        const v = Math.max(0, Math.min(IV_MAX, Number(e.target.value) || 0));
+        b.ivs[inp.dataset.iv] = v;
+        const valSpan = box.querySelector(`[data-iv-val="${inp.dataset.iv}"]`);
+        if (valSpan) valSpan.textContent = v;
+        save();
       };
+      inp.onchange = () => { renderEditor(); renderAnalysis(); };
     });
 
     // seletor de golpes: abrir/fechar, buscar, filtrar por método, escolher, limpar

@@ -62,10 +62,12 @@ window.Pokedex = (function () {
     body.innerHTML = `<p class="loading">Carregando ficha…</p>`;
     try {
       const p = await window.API.getPokemon(idOrName);
-      const species = await window.API.getSpecies(p.id).catch(() => null);
+      const species = await window.API.getSpecies(p.species ? p.species.name : p.id).catch(() => null);
       const types = p.types.map(t => t.type.name);
       const flavor = species && (species.flavor_text_entries
         .find(f => f.language.name === "en") || {}).flavor_text;
+      const formsHtml = species ? formsChipsHtml(p, species) : "";
+      const evoHtml = species ? await evolutionHtml(species) : "";
 
       const statMax = 255;
       const statRow = (label, val) => `
@@ -95,6 +97,8 @@ window.Pokedex = (function () {
           <span><b>Peso</b> ${p.weight / 10} kg</span>
           <span><b>Exp. base</b> ${p.base_experience ?? "—"}</span>
         </div>
+        ${formsHtml}
+        ${evoHtml}
         <h3>Habilidades</h3>
         <ul class="abilities">
           ${p.abilities.map(a => `<li>${cap(a.ability.name.replace(/-/g, " "))}${a.is_hidden ? " <em>(oculta)</em>" : ""}</li>`).join("")}
@@ -136,6 +140,87 @@ window.Pokedex = (function () {
     } catch (e) {
       body.innerHTML = `<p class="error">Não consegui carregar: ${e.message}</p>`;
     }
+  }
+
+  // ---- formas alternativas (mega, regionais, gigamax…) ----
+  function formLabel(varietyName, speciesName) {
+    if (varietyName === speciesName) return "Padrão";
+    const rest = varietyName.startsWith(speciesName + "-")
+      ? varietyName.slice(speciesName.length + 1)
+      : varietyName;
+    return rest.split("-").map(w => {
+      if (w === "x" || w === "y") return w.toUpperCase();
+      if (w === "gmax") return "Gigamax";
+      return cap(w);
+    }).join(" ");
+  }
+
+  function formsChipsHtml(p, species) {
+    const varieties = species.varieties || [];
+    if (varieties.length < 2) return "";
+    const chips = varieties.map(v => {
+      const vid = window.API.idFromUrl(v.pokemon.url);
+      const label = formLabel(v.pokemon.name, species.name);
+      const active = v.pokemon.name === p.name;
+      return `
+        <button type="button" class="form-chip${active ? " active" : ""}" data-form="${v.pokemon.name}">
+          <img src="${window.API.SPRITE(vid)}" alt="${label}" onerror="this.style.visibility='hidden'">
+          <span>${label}</span>
+        </button>`;
+    }).join("");
+    return `<h3>Formas</h3><div class="forms-row">${chips}</div>`;
+  }
+
+  // ---- linha evolutiva ----
+  function evoCondition(details) {
+    if (!details || !details.length) return "";
+    const d = details[0];
+    const trig = d.trigger && d.trigger.name;
+    if (trig === "level-up") {
+      if (d.min_level) return `Nv. ${d.min_level}`;
+      if (d.min_happiness) return "Felicidade alta";
+      if (d.min_affection) return "Afeição alta";
+      if (d.known_move) return `Golpe: ${cap(d.known_move.name.replace(/-/g, " "))}`;
+      if (d.known_move_type) return `Tipo: ${window.TYPE_PT[d.known_move_type.name] || d.known_move_type.name}`;
+      if (d.time_of_day) return d.time_of_day === "day" ? "De dia" : "De noite";
+      if (d.location) return "Local específico";
+      return "Nível";
+    }
+    if (trig === "trade") return d.item ? `Troca c/ ${cap(d.item.name.replace(/-/g, " "))}` : "Troca";
+    if (trig === "use-item") return d.item ? cap(d.item.name.replace(/-/g, " ")) : "Item";
+    if (trig === "shed") return "Vaga na equipe + Pokéball";
+    return cap((trig || "").replace(/-/g, " "));
+  }
+
+  async function evolutionHtml(species) {
+    if (!species.evolution_chain || !species.evolution_chain.url) return "";
+    try {
+      const chain = await window.API.getEvolutionChain(species.evolution_chain.url);
+      const levels = [];
+      (function walk(node, depth) {
+        const id = window.API.idFromUrl(node.species.url);
+        (levels[depth] = levels[depth] || []).push({ id, name: node.species.name, details: node.evolution_details });
+        node.evolves_to.forEach(n => walk(n, depth + 1));
+      })(chain.chain, 0);
+      if (levels.length < 2) return "";
+
+      let html = `<h3>Linha evolutiva</h3><div class="evo-chain">`;
+      levels.forEach((stage, i) => {
+        if (i > 0) {
+          const conds = [...new Set(stage.map(s => evoCondition(s.details)).filter(Boolean))];
+          html += `<div class="evo-arrow"><span>→</span>${conds.length ? `<small>${conds.join(" / ")}</small>` : ""}</div>`;
+        }
+        html += `<div class="evo-stage">`;
+        html += stage.map(s => `
+          <button type="button" class="evo-mon${s.name === species.name ? " active" : ""}" data-name="${s.name}">
+            <img src="${window.API.SPRITE(s.id)}" alt="${s.name}" onerror="this.style.visibility='hidden'">
+            <span>${cap(s.name)}</span>
+          </button>`).join("");
+        html += `</div>`;
+      });
+      html += `</div>`;
+      return html;
+    } catch { return ""; }
   }
 
   // ---- painel de movimentos com filtros + enriquecimento sob demanda ----
@@ -259,7 +344,11 @@ window.Pokedex = (function () {
     });
     $("#modal-body").addEventListener("click", (e) => {
       const addBtn = e.target.closest("[data-add]");
-      if (addBtn) window.Team.add(addBtn.dataset.add);
+      if (addBtn) { window.Team.add(addBtn.dataset.add); return; }
+      const formBtn = e.target.closest("[data-form]");
+      if (formBtn) { openDetail(formBtn.dataset.form); return; }
+      const evoBtn = e.target.closest("[data-name]");
+      if (evoBtn) { openDetail(evoBtn.dataset.name); return; }
     });
     $("#modal-close").addEventListener("click", closeDetail);
     $("#modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeDetail(); });
