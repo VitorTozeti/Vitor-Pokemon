@@ -71,6 +71,7 @@ window.Team = (function () {
     if (!t) return;
     if (!confirm(`Excluir "${t.name}"? Isso remove todos os membros dele.`)) return;
     state.teams = state.teams.filter(x => x.id !== id);
+    delete aiRuns[id];
     if (state.active === id) state.active = state.teams[0].id;
     editing = -1; openSlot = -1;
     save(); render();
@@ -264,18 +265,25 @@ window.Team = (function () {
       <h3>🎯 Meta do time <span class="muted">(qual é o objetivo/estratégia deste time?)</span></h3>
       <div class="meta-presets">${chips}</div>
       <textarea id="meta-text" class="meta-textarea" rows="2"
-        placeholder="Ex.: time ofensivo rápido para varrer partidas, ou defensivo pra segurar o jogo até virar…">${escapeHtml(team.meta || "")}</textarea>`;
+        placeholder="Ex.: time ofensivo rápido para varrer partidas, ou defensivo pra segurar o jogo até virar…">${escapeHtml(team.meta || "")}</textarea>
+      <button type="button" class="btn-primary meta-send-btn" id="meta-send-ai">📤 Enviar time para a IA</button>`;
     const ta = box.querySelector("#meta-text");
-    ta.oninput = debounceMeta(() => { activeTeam().meta = ta.value; save(); renderAnalysis(); });
+    ta.oninput = debounceMeta(() => { activeTeam().meta = ta.value; save(); });
     box.querySelectorAll("[data-meta-preset]").forEach(btn => {
       btn.onclick = () => {
         const p = META_PRESETS.find(x => x.id === btn.dataset.metaPreset);
         if (!p) return;
         ta.value = p.text;
         activeTeam().meta = p.text;
-        save(); renderAnalysis();
+        save();
       };
     });
+    box.querySelector("#meta-send-ai").onclick = () => {
+      const t = activeTeam();
+      if (!t.members.length) { toast("Adicione Pokémon ao time antes de perguntar pra IA."); return; }
+      runAi(t, analyze());
+      $("#analysis").scrollIntoView({ behavior: "smooth", block: "start" });
+    };
   }
   let metaDebounceTimer;
   function debounceMeta(fn) {
@@ -365,6 +373,24 @@ window.Team = (function () {
     else { tier = "Fraco pro que se propõe"; tierClass = "bad"; }
 
     return { score, tier, tierClass, profile, reasons };
+  }
+
+  // guarda o último parecer pedido por time (só roda quando o treinador clica em
+  // "Enviar time para a IA" — não fica recalculando sozinho a cada tecla/EV/golpe).
+  const aiRuns = {}; // teamId -> { snapshot, result }
+
+  function aiSnapshot(a, team) {
+    return JSON.stringify({
+      meta: team.meta, n: team.members.length,
+      gaps: a.gaps, sharedWeak: a.sharedWeak.map(s => [s.type, s.weak]),
+      offense: a.offense, bulk: a.bulk, speed: a.speed, incomplete: a.incomplete.length,
+    });
+  }
+
+  function runAi(team, a) {
+    aiRuns[team.id] = { snapshot: aiSnapshot(a, team), result: aiVerdict(a, team) };
+    renderAnalysis();
+    toast("A IA analisou o time!");
   }
 
   // ================= RENDER: EDITOR DE MEMBRO =================
@@ -545,6 +571,14 @@ window.Team = (function () {
     wrap.innerHTML = rows.length
       ? rows.map(mv => moveRowHTML(m, mv, i)).join("")
       : `<p class="mvp-empty">Nenhum golpe encontrado.</p>`;
+    // delegação: o wrap sobrevive a cada re-render (busca/filtro), as linhas de dentro não —
+    // por isso o clique é ouvido no wrap, não em cada linha (senão some ao filtrar/buscar).
+    wrap.onclick = (e) => {
+      const row = e.target.closest("[data-pick-move]");
+      if (!row) return;
+      const [slot, name] = row.dataset.pickMove.split(/:(.+)/);
+      pickMove(m, Number(slot), name);
+    };
   }
 
   function refreshOpenMoveList() {
@@ -684,12 +718,8 @@ window.Team = (function () {
       panel.querySelector("[data-mvp-clear]").onclick = () => {
         b.moves[i] = null; openSlot = -1; save(); renderEditor(); renderAnalysis();
       };
-      panel.querySelectorAll("[data-pick-move]").forEach(row => {
-        row.onclick = () => {
-          const [slot, name] = row.dataset.pickMove.split(/:(.+)/);
-          pickMove(m, Number(slot), name);
-        };
-      });
+      // clique em cada golpe é tratado por delegação dentro de renderMoveList (o wrap
+      // sobrevive a buscas/filtros, as linhas não).
     }
   }
 
@@ -711,25 +741,36 @@ window.Team = (function () {
         <span class="stat-val">${val}</span>
         <span class="stat-bar"><i style="width:${Math.min(100, (val / max) * 100)}%"></i></span></div>`;
 
-    const ai = aiVerdict(a, team);
+    const run = aiRuns[team.id];
+    const snap = aiSnapshot(a, team);
+    const stale = !!run && run.snapshot !== snap;
+    const aiCardHtml = !run
+      ? `<section class="acard span2 ai-card ai-pending">
+          <h4>🤖 Análise do treinador <span class="muted">(IA local, gratuita e offline — não é um LLM)</span></h4>
+          <p class="muted">Descreva a meta do time acima e clique em <b>"📤 Enviar time para a IA"</b>
+            pra receber uma nota e um parecer sobre se o time está bom pro que ele se propõe.</p>
+        </section>`
+      : `<section class="acard span2 ai-card ai-${run.result.tierClass}${stale ? " ai-stale" : ""}">
+          <h4>🤖 Análise do treinador <span class="muted">(IA local, gratuita e offline — não é um LLM)</span></h4>
+          ${stale ? `<p class="ai-stale-note">⚠️ O time mudou desde essa análise — envie de novo pra atualizar o parecer.</p>` : ""}
+          <div class="ai-score-row">
+            <span class="ai-score">${run.result.score}<small>/10</small></span>
+            <div>
+              <p class="ai-tier">${run.result.tier}</p>
+              <p class="muted small">Meta avaliada: <b>${run.result.profile.label}</b></p>
+            </div>
+          </div>
+          <p class="muted small">${run.result.profile.note}</p>
+          ${run.result.reasons.pos.length ? `<p class="ai-sub">Pontos fortes</p><ul class="suggestions ai-pos">
+            ${run.result.reasons.pos.map(r => `<li>${r}</li>`).join("")}</ul>` : ""}
+          ${run.result.reasons.neg.length ? `<p class="ai-sub">Pontos a melhorar</p><ul class="suggestions ai-neg">
+            ${run.result.reasons.neg.map(r => `<li>${r}</li>`).join("")}</ul>` : ""}
+          <button type="button" class="btn-ghost ai-resend-btn" id="ai-resend">📤 Enviar de novo</button>
+        </section>`;
 
     box.innerHTML = `
       <div class="analysis-grid">
-        <section class="acard span2 ai-card ai-${ai.tierClass}">
-          <h4>🤖 Análise do treinador <span class="muted">(IA local, gratuita e offline — não é um LLM)</span></h4>
-          <div class="ai-score-row">
-            <span class="ai-score">${ai.score}<small>/10</small></span>
-            <div>
-              <p class="ai-tier">${ai.tier}</p>
-              <p class="muted small">Meta avaliada: <b>${ai.profile.label}</b></p>
-            </div>
-          </div>
-          <p class="muted small">${ai.profile.note}</p>
-          ${ai.reasons.pos.length ? `<p class="ai-sub">Pontos fortes</p><ul class="suggestions ai-pos">
-            ${ai.reasons.pos.map(r => `<li>${r}</li>`).join("")}</ul>` : ""}
-          ${ai.reasons.neg.length ? `<p class="ai-sub">Pontos a melhorar</p><ul class="suggestions ai-neg">
-            ${ai.reasons.neg.map(r => `<li>${r}</li>`).join("")}</ul>` : ""}
-        </section>
+        ${aiCardHtml}
 
         <section class="acard">
           <h4>🎯 Cobertura ofensiva <span class="muted">(${a.usedMoves ? "pelos golpes" : "por STAB"})</span></h4>
@@ -781,6 +822,9 @@ window.Team = (function () {
           }).join("")}
         </div>
       </details>`;
+
+    const resend = box.querySelector("#ai-resend");
+    if (resend) resend.onclick = () => runAi(team, a);
   }
 
   // ---- toast ----

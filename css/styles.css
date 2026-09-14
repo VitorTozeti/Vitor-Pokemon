@@ -418,9 +418,11 @@ main{max-width:1220px; margin:0 auto; padding:22px}
   border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px; font-size:13.5px;
   font-family:inherit; line-height:1.45}
 .meta-textarea:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
+.meta-send-btn{display:block; margin:12px 0 0}
 
 /* análise: cartão da IA local */
 .ai-card{border-width:1.5px}
+.ai-card.ai-pending{background:linear-gradient(160deg,var(--panel),var(--panel-2))}
 .ai-score-row{display:flex; align-items:center; gap:16px; margin-bottom:6px}
 .ai-score{font-size:34px; font-weight:800; line-height:1; color:var(--text)}
 .ai-score small{font-size:15px; color:var(--muted); font-weight:600}
@@ -430,6 +432,10 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .ai-neg li::marker{color:var(--accent)}
 .ai-good{border-color:var(--ok)} .ai-ok{border-color:var(--accent-line)}
 .ai-warn{border-color:var(--gold)} .ai-bad{border-color:var(--accent)}
+.ai-stale{opacity:.82}
+.ai-stale-note{background:var(--gold); color:#241a02; font-weight:700; font-size:12.5px;
+  padding:7px 12px; border-radius:var(--radius-sm); margin-bottom:10px}
+.ai-resend-btn{margin-top:12px}
 
 /* análise */
 .analysis-grid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
