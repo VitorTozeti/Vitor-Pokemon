@@ -28,12 +28,15 @@ window.Team = (function () {
   function load() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEY));
-      if (raw && Array.isArray(raw.teams) && raw.teams.length) return raw;
+      if (raw && Array.isArray(raw.teams) && raw.teams.length) {
+        raw.teams.forEach(t => { if (typeof t.meta !== "string") t.meta = ""; }); // migra times sem meta
+        return raw;
+      }
     } catch {}
     // migra do formato antigo (um único time, sem nome)
     let migrated = [];
     try { migrated = JSON.parse(localStorage.getItem(OLD_KEY)) || []; } catch {}
-    const first = { id: uid(), name: "Time 1", members: migrated };
+    const first = { id: uid(), name: "Time 1", members: migrated, meta: "" };
     return { teams: [first], active: first.id };
   }
   function save() {
@@ -46,7 +49,7 @@ window.Team = (function () {
   // ================= TIMES =================
   function addTeam() {
     const n = state.teams.length + 1;
-    const t = { id: uid(), name: `Time ${n}`, members: [] };
+    const t = { id: uid(), name: `Time ${n}`, members: [], meta: "" };
     state.teams.push(t);
     state.active = t.id;
     editing = -1; openSlot = -1;
@@ -236,8 +239,132 @@ window.Team = (function () {
     wrap.innerHTML = slots.join("");
     $("#team-badge").textContent = team.members.length;
     $("#team-clear").disabled = team.members.length === 0;
+    renderMetaBox();
     renderEditor();
     renderAnalysis();
+  }
+
+  // ================= RENDER: META DO TIME (objetivo/estratégia) =================
+  const META_PRESETS = [
+    { id: "ofensivo", label: "⚔️ Ofensivo (hyper offense)", text: "Time ofensivo/hyper offense: atacar rápido e forte, varrer o time adversário." },
+    { id: "defensivo", label: "🛡️ Defensivo (stall)", text: "Time defensivo/stall: aguentar dano, curar e desgastar o adversário." },
+    { id: "balanceado", label: "⚖️ Balanceado", text: "Time balanceado: mistura de ataque e defesa, sem exagerar em nenhum lado." },
+    { id: "trick-room", label: "🌀 Trick Room", text: "Time de Trick Room: usar Pokémon lentos e fortes, invertendo a ordem de velocidade." },
+    { id: "chuva", label: "🌧️ Chuva (rain)", text: "Time de chuva: abusar de golpes de Água e clima chuvoso para ganhar vantagem." },
+    { id: "sol", label: "☀️ Sol (sun)", text: "Time de sol: abusar de golpes de Fogo e clima ensolarado para ganhar vantagem." },
+  ];
+
+  function renderMetaBox() {
+    const box = $("#team-meta");
+    if (!box) return;
+    const team = activeTeam();
+    const chips = META_PRESETS.map(p =>
+      `<button type="button" class="meta-chip" data-meta-preset="${p.id}" title="Preencher com este objetivo">${p.label}</button>`).join("");
+    box.innerHTML = `
+      <h3>🎯 Meta do time <span class="muted">(qual é o objetivo/estratégia deste time?)</span></h3>
+      <div class="meta-presets">${chips}</div>
+      <textarea id="meta-text" class="meta-textarea" rows="2"
+        placeholder="Ex.: time ofensivo rápido para varrer partidas, ou defensivo pra segurar o jogo até virar…">${escapeHtml(team.meta || "")}</textarea>`;
+    const ta = box.querySelector("#meta-text");
+    ta.oninput = debounceMeta(() => { activeTeam().meta = ta.value; save(); renderAnalysis(); });
+    box.querySelectorAll("[data-meta-preset]").forEach(btn => {
+      btn.onclick = () => {
+        const p = META_PRESETS.find(x => x.id === btn.dataset.metaPreset);
+        if (!p) return;
+        ta.value = p.text;
+        activeTeam().meta = p.text;
+        save(); renderAnalysis();
+      };
+    });
+  }
+  let metaDebounceTimer;
+  function debounceMeta(fn) {
+    return (...a) => { clearTimeout(metaDebounceTimer); metaDebounceTimer = setTimeout(() => fn(...a), 300); };
+  }
+
+  // ================= "IA" LOCAL — analisador de time gratuito, 100% no navegador =================
+  // Não é um LLM: é um motor de regras que lê os números da análise (cobertura, fraquezas
+  // compartilhadas, status finais, movesets) e a meta declarada pelo treinador, e devolve um
+  // parecer em português — funciona offline, sem chave de API e sem custo.
+  function stripAccents(s) {
+    return s.normalize("NFD").replace(new RegExp("[\u0300-\u036f]", "g"), "");
+  }
+
+  function detectMetaProfile(metaText) {
+    const t = stripAccents((metaText || "").toLowerCase());
+    const has = (...words) => words.some(w => t.includes(w));
+    if (has("trick room", "trickroom")) {
+      return { label: "Trick Room", offense: [200, 999], bulk: [190, 999], speed: [0, 170],
+        note: "Em Trick Room a velocidade baixa é uma vantagem, não um problema — o ideal é ter Pokémon lentos e fortes." };
+    }
+    if (has("hyper offense", "ofensivo", "ataque", "sweep", "varrer")) {
+      return { label: "Ofensivo (hyper offense)", offense: [230, 999], bulk: [0, 999], speed: [220, 999],
+        note: "Times ofensivos vivem de velocidade e poder de fogo — bulk baixo é aceitável se o time vence rápido." };
+    }
+    if (has("defensivo", "stall", "muro", "tanque", "segurar")) {
+      return { label: "Defensivo (stall)", offense: [0, 999], bulk: [230, 999], speed: [0, 999],
+        note: "Times defensivos precisam de bulk alto e boa cobertura defensiva; ofensiva pode ser menor." };
+    }
+    if (has("chuva", "rain")) {
+      return { label: "Chuva (rain)", offense: [190, 999], bulk: [0, 999], speed: [190, 999],
+        note: "Times de clima dependem de setter + abusadores do clima (ex.: golpes de Água na chuva) — isso o motor não enxerga pelos números, então confira manualmente as habilidades/golpes de clima." };
+    }
+    if (has("sol", "sun")) {
+      return { label: "Sol (sun)", offense: [190, 999], bulk: [0, 999], speed: [190, 999],
+        note: "Times de clima dependem de setter + abusadores do clima (ex.: golpes de Fogo no sol) — isso o motor não enxerga pelos números, então confira manualmente as habilidades/golpes de clima." };
+    }
+    if (has("balanceado", "equilibrado")) {
+      return { label: "Balanceado", offense: [170, 999], bulk: [170, 999], speed: [150, 999],
+        note: "Times balanceados querem números razoáveis nas três frentes, sem depender de um único extremo." };
+    }
+    return { label: "Sem meta declarada (padrão equilibrado)", offense: [160, 999], bulk: [160, 999], speed: [140, 999],
+      note: "Sem uma meta declarada, avaliei como um time genérico equilibrado. Descreva o objetivo acima para uma leitura mais precisa." };
+  }
+
+  function inRange(v, [min, max]) { return v >= min && v <= max; }
+
+  function aiVerdict(a, team) {
+    const profile = detectMetaProfile(team.meta);
+    const n = team.members.length;
+    const reasons = { pos: [], neg: [] };
+    let score = 0;
+
+    // cobertura ofensiva (até 3 pts)
+    if (a.gaps.length === 0) { score += 3; reasons.pos.push("cobertura ofensiva fecha os 18 tipos"); }
+    else if (a.gaps.length <= 3) { score += 2; reasons.pos.push("cobertura ofensiva quase completa"); }
+    else if (a.gaps.length <= 8) { score += 1; reasons.neg.push(`${a.gaps.length} tipos sem golpe super-efetivo`); }
+    else reasons.neg.push(`cobertura ofensiva fraca — ${a.gaps.length} tipos descobertos`);
+
+    // fraquezas compartilhadas (até 2 pts)
+    if (a.sharedWeak.length === 0) { score += 2; reasons.pos.push("nenhuma fraqueza compartilhada por 2+ membros"); }
+    else if (a.sharedWeak.length === 1) { score += 1; reasons.neg.push(`todo o time é vulnerável a ${window.TYPE_PT[a.sharedWeak[0].type]}`); }
+    else reasons.neg.push(`${a.sharedWeak.length} tipos ameaçam 2+ membros ao mesmo tempo`);
+
+    // movesets completos (até 2 pts)
+    const incompleteRatio = n ? a.incomplete.length / n : 1;
+    if (incompleteRatio === 0) { score += 2; reasons.pos.push("todos os membros já têm 4 golpes definidos"); }
+    else if (incompleteRatio <= 0.34) { score += 1; reasons.neg.push(`${a.incomplete.length} membro(s) ainda sem moveset completo`); }
+    else reasons.neg.push(`${a.incomplete.length} de ${n} membros ainda sem 4 golpes — a análise fica imprecisa`);
+
+    // encaixe com a meta declarada (até 3 pts)
+    const fits = [inRange(a.offense, profile.offense), inRange(a.bulk, profile.bulk), inRange(a.speed, profile.speed)];
+    const fitCount = fits.filter(Boolean).length;
+    score += fitCount; // 0-3
+    if (fitCount === 3) reasons.pos.push(`perfil de status combina com a meta "${profile.label}"`);
+    else if (fitCount > 0) reasons.neg.push(`perfil de status só combina parcialmente com a meta "${profile.label}"`);
+    else reasons.neg.push(`perfil de status não combina com a meta "${profile.label}" (confira ofensivo/bulk/velocidade)`);
+
+    // tamanho do time
+    if (n < 6) reasons.neg.push(`time incompleto — só ${n}/6 membros (mais Pokémon ampliam cobertura e opções)`);
+
+    score = Math.max(0, Math.min(10, Math.round(score)));
+    let tier, tierClass;
+    if (score >= 8) { tier = "Time muito bom 👍"; tierClass = "good"; }
+    else if (score >= 6) { tier = "Bom, com espaço pra ajuste"; tierClass = "ok"; }
+    else if (score >= 4) { tier = "Mediano — precisa de trabalho"; tierClass = "warn"; }
+    else { tier = "Fraco pro que se propõe"; tierClass = "bad"; }
+
+    return { score, tier, tierClass, profile, reasons };
   }
 
   // ================= RENDER: EDITOR DE MEMBRO =================
@@ -299,7 +426,9 @@ window.Team = (function () {
         </label>
       </div>
 
-      <h4>Movimentos <span class="muted">(escolha até 4 — busque por nome, filtre por método)</span></h4>
+      <h4>Movimentos <span class="muted">(escolha até 4 — busque por nome, filtre por método)</span>
+        <button type="button" class="btn-ghost btn-auto-moves" id="auto-fill-moves" title="Preenche os slots vazios com bons golpes automaticamente">🎲 Preencher automaticamente</button>
+      </h4>
       <div class="moves-editor">${moveSlots}</div>
 
       <h4>Status <span class="muted">— EVs (0–252, total ${evTotal}/${EV_TOTAL}) e IVs (0–31)</span></h4>
@@ -443,10 +572,55 @@ window.Team = (function () {
     }
   }
 
+  // preenche os slots de golpe vazios com boas opções automaticamente: prioriza golpes de
+  // dano do próprio tipo (STAB), depois maior poder; usa o que já estiver enriquecido em
+  // memória (ensureEnrich já busca em segundo plano ao abrir o editor).
+  function autoFillMoves(m) {
+    const enrich = moveEnrich[m.name] || {};
+    const known = Object.keys(enrich).length;
+    if (!known) { toast("Carregando dados dos golpes… tente de novo em um instante."); return; }
+    const b = m.build;
+    const already = new Set(b.moves.filter(Boolean).map(x => x.name));
+    const emptySlots = [0, 1, 2, 3].filter(i => !b.moves[i]);
+    if (!emptySlots.length) { toast("Todos os slots já estão preenchidos."); return; }
+
+    const candidates = m.moveList
+      .map(mv => ({ name: mv.name, d: enrich[mv.name] }))
+      .filter(c => c.d && !already.has(c.name));
+
+    const score = (c) => {
+      const stab = m.types.includes(c.d.type) ? 1 : 0;
+      const status = c.d.category === "status" ? 0 : 1;
+      return status * 200 + stab * 100 + (c.d.power || 0);
+    };
+    candidates.sort((a, c) => score(c) - score(a));
+
+    // no máximo 1 golpe de status (útil, mas não o time todo)
+    const picked = [];
+    let statusUsed = 0;
+    for (const c of candidates) {
+      if (picked.length >= emptySlots.length) break;
+      if (c.d.category === "status") {
+        if (statusUsed >= 1) continue;
+        statusUsed++;
+      }
+      picked.push(c);
+    }
+
+    emptySlots.forEach((slot, i) => {
+      const c = picked[i];
+      if (c) b.moves[slot] = { name: c.name, type: c.d.type, category: c.d.category };
+    });
+    save(); renderEditor(); renderAnalysis();
+    toast(picked.length ? `${picked.length} golpe(s) preenchido(s) automaticamente.` : "Nenhum golpe novo disponível.");
+  }
+
   function wireEditor(m) {
     const b = m.build;
     const box = $("#team-editor");
     box.querySelector("#editor-close").onclick = () => { editing = -1; openSlot = -1; render(); };
+    const autoBtn = box.querySelector("#auto-fill-moves");
+    if (autoBtn) autoBtn.onclick = () => autoFillMoves(m);
     box.querySelector("#f-ability").onchange = (e) => { b.ability = e.target.value; save(); };
     box.querySelector("#f-item").oninput = (e) => { b.item = e.target.value; save(); };
     box.querySelector("#f-nature").onchange = (e) => { b.nature = e.target.value; save(); renderEditor(); renderAnalysis(); };
@@ -537,8 +711,26 @@ window.Team = (function () {
         <span class="stat-val">${val}</span>
         <span class="stat-bar"><i style="width:${Math.min(100, (val / max) * 100)}%"></i></span></div>`;
 
+    const ai = aiVerdict(a, team);
+
     box.innerHTML = `
       <div class="analysis-grid">
+        <section class="acard span2 ai-card ai-${ai.tierClass}">
+          <h4>🤖 Análise do treinador <span class="muted">(IA local, gratuita e offline — não é um LLM)</span></h4>
+          <div class="ai-score-row">
+            <span class="ai-score">${ai.score}<small>/10</small></span>
+            <div>
+              <p class="ai-tier">${ai.tier}</p>
+              <p class="muted small">Meta avaliada: <b>${ai.profile.label}</b></p>
+            </div>
+          </div>
+          <p class="muted small">${ai.profile.note}</p>
+          ${ai.reasons.pos.length ? `<p class="ai-sub">Pontos fortes</p><ul class="suggestions ai-pos">
+            ${ai.reasons.pos.map(r => `<li>${r}</li>`).join("")}</ul>` : ""}
+          ${ai.reasons.neg.length ? `<p class="ai-sub">Pontos a melhorar</p><ul class="suggestions ai-neg">
+            ${ai.reasons.neg.map(r => `<li>${r}</li>`).join("")}</ul>` : ""}
+        </section>
+
         <section class="acard">
           <h4>🎯 Cobertura ofensiva <span class="muted">(${a.usedMoves ? "pelos golpes" : "por STAB"})</span></h4>
           ${a.gaps.length

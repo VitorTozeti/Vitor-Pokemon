@@ -81,14 +81,14 @@ window.Pokedex = (function () {
       const total = p.stats.reduce((a, s) => a + s.base_stat, 0);
 
       body.innerHTML = `
-        <div class="detail-head" style="background:linear-gradient(135deg, ${window.TYPE_COLOR[types[0]]}55, transparent)">
+        <div class="detail-hero" style="--hero-c:${window.TYPE_COLOR[types[0]]}">
           <img class="detail-art" src="${window.API.ARTWORK(p.id)}"
                onerror="this.src='${window.API.SPRITE(p.id)}'" alt="${p.name}">
-          <div>
+          <div class="detail-hero-info">
             <span class="detail-num">#${pad(p.id)}</span>
             <h2>${cap(p.name)}</h2>
-            <div class="card-types">${types.map(typeBadge).join("")}</div>
-            <button class="btn-primary" data-add="${p.name}">＋ Adicionar ao time</button>
+            <div class="card-types detail-types">${types.map(typeBadge).join("")}</div>
+            <button class="btn-primary btn-add-team" data-add="${p.name}">＋ Adicionar ao time</button>
           </div>
         </div>
         ${flavor ? `<p class="flavor">${flavor.replace(/[\n\f]/g, " ")}</p>` : ""}

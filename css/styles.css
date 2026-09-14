@@ -225,10 +225,20 @@ main{max-width:1220px; margin:0 auto; padding:22px}
   border:1px solid var(--line); color:var(--text); width:36px; height:36px;
   border-radius:50%; cursor:pointer; font-size:16px; transition:.15s}
 .modal-close:hover{border-color:var(--accent-line); background:var(--accent-dim)}
-.detail-head{display:flex; gap:20px; align-items:center; border-radius:var(--radius); padding:16px; flex-wrap:wrap}
-.detail-art{width:180px; height:180px; object-fit:contain; filter:drop-shadow(0 10px 16px #0009)}
-.detail-num{color:var(--muted)}
-.detail-head h2{text-transform:capitalize; font-size:27px}
+.detail-hero{
+  --hero-c:#888; position:relative; display:flex; gap:24px; align-items:center; flex-wrap:wrap;
+  border-radius:var(--radius-lg); padding:22px 26px; border:1px solid var(--line);
+  background:radial-gradient(circle at 18% 25%, var(--hero-c)3d, transparent 62%),
+             linear-gradient(150deg,var(--panel),var(--panel-2));
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);
+}
+.detail-art{width:180px; height:180px; object-fit:contain; filter:drop-shadow(0 10px 16px #0009); flex:0 0 auto}
+.detail-num{color:var(--muted); font-weight:700; letter-spacing:.3px}
+.detail-hero-info{display:flex; flex-direction:column; align-items:flex-start; gap:9px; min-width:180px}
+.detail-hero h2{text-transform:capitalize; font-size:32px; line-height:1.1; margin:0}
+.detail-types{gap:7px}
+.detail-types .badge{font-size:13px; padding:5px 13px}
+.btn-add-team{margin-top:2px}
 .flavor{color:var(--muted); font-style:italic; margin:14px 0; line-height:1.6}
 .detail-meta{display:flex; gap:20px; flex-wrap:wrap; margin:10px 0 4px}
 .detail-meta b{color:var(--muted); font-weight:600; margin-right:4px}
@@ -314,7 +324,9 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .fld select,.fld input{background:var(--panel-2); color:var(--text); border:1px solid var(--line);
   padding:9px 11px; border-radius:var(--radius-sm); font-size:14px; font-weight:400; text-transform:none; letter-spacing:normal}
 .fld select:focus,.fld input:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
-.team-editor h4{margin:18px 0 10px; font-size:14px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted)}
+.team-editor h4{margin:18px 0 10px; font-size:14px; text-transform:uppercase; letter-spacing:.4px; color:var(--muted);
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px}
+.btn-auto-moves{margin-left:auto; text-transform:none; letter-spacing:normal; font-size:12.5px; padding:6px 12px}
 
 /* linhas de EV/IV */
 .ev-head,.ev-row{display:grid; grid-template-columns:90px 42px 1fr 1fr; gap:10px; align-items:center}
@@ -393,6 +405,31 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .slot-remove{position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%;
   background:var(--panel-2); border:1px solid var(--line); color:var(--text); cursor:pointer}
 .slot-remove:hover{background:var(--accent); color:#fff; border-color:var(--accent)}
+
+/* meta do time */
+.team-meta{background:linear-gradient(160deg,var(--panel),var(--panel-2)); border:1px solid var(--line);
+  border-radius:var(--radius); padding:16px 18px; margin-bottom:18px}
+.team-meta h3{font-size:14.5px; margin-bottom:10px}
+.meta-presets{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px}
+.meta-chip{background:var(--panel-2); border:1px solid var(--line); color:var(--muted); font-size:12px;
+  padding:5px 11px; border-radius:999px; cursor:pointer; font-weight:600; transition:.15s}
+.meta-chip:hover{color:var(--text); border-color:var(--accent-line); background:var(--accent-dim)}
+.meta-textarea{width:100%; resize:vertical; min-height:44px; background:var(--panel-2); color:var(--text);
+  border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px; font-size:13.5px;
+  font-family:inherit; line-height:1.45}
+.meta-textarea:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
+
+/* análise: cartão da IA local */
+.ai-card{border-width:1.5px}
+.ai-score-row{display:flex; align-items:center; gap:16px; margin-bottom:6px}
+.ai-score{font-size:34px; font-weight:800; line-height:1; color:var(--text)}
+.ai-score small{font-size:15px; color:var(--muted); font-weight:600}
+.ai-tier{font-weight:700; font-size:15.5px; margin:0 0 2px}
+.ai-sub{margin:10px 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.3px; color:var(--muted); font-weight:700}
+.ai-pos li::marker{color:var(--ok)}
+.ai-neg li::marker{color:var(--accent)}
+.ai-good{border-color:var(--ok)} .ai-ok{border-color:var(--accent-line)}
+.ai-warn{border-color:var(--gold)} .ai-bad{border-color:var(--accent)}
 
 /* análise */
 .analysis-grid{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
