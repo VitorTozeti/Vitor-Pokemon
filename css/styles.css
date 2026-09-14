@@ -147,9 +147,68 @@ main{max-width:1200px; margin:0 auto; padding:18px}
 .typechart th.rowh{--c:#888; text-align:right; padding-right:8px; color:var(--c); font-weight:700; width:auto; white-space:nowrap}
 .typechart td{font-weight:700; color:#fff}
 
-/* ---- time ---- */
+/* ---- tela Tipos centralizada ---- */
+#view-types{max-width:980px; margin:0 auto}
+#view-types h2, #view-types>p{text-align:center}
+.typechart-wrap{display:flex; justify-content:center}
+
+/* ---- time (centralizado) ---- */
+#view-team{max-width:1000px; margin:0 auto}
 .team-head{display:flex; align-items:center; justify-content:space-between}
-.team-slots{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); margin:12px 0 26px}
+#view-team>h2{text-align:center}
+.team-head h2{text-align:left}
+.team-slots{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); margin:12px 0 20px; justify-content:center}
+.slot-info{font-size:11px; color:var(--muted); margin-top:2px}
+.edit-hint{color:var(--accent)}
+.slot.filled{cursor:pointer}
+.slot.filled.active{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent) inset}
+
+/* editor de membro */
+.team-editor{background:var(--panel); border:1px solid var(--accent); border-radius:var(--radius);
+  padding:18px; margin:0 auto 26px; box-shadow:var(--shadow)}
+.editor-head{display:flex; align-items:center; gap:14px; margin-bottom:14px}
+.editor-head img{width:64px; height:64px; image-rendering:pixelated}
+.editor-head h3{text-transform:capitalize}
+.editor-head .btn-ghost{margin-left:auto}
+.editor-grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:8px}
+.fld{display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--muted)}
+.fld select,.fld input{background:var(--panel2); color:var(--text); border:1px solid var(--line);
+  padding:8px 10px; border-radius:8px; font-size:14px}
+.team-editor h4{margin:16px 0 8px}
+
+.moves-editor{display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.move-slot{display:flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line);
+  border-radius:8px; padding:6px 8px}
+.move-slot select{flex:1; background:transparent; color:var(--text); border:0; font-size:13px; min-width:0}
+.mv-badge{flex:0 0 auto}
+.mv-cat{font-size:11px; padding:2px 6px; border-radius:6px; border:1px solid var(--line); white-space:nowrap}
+.cat-physical{color:#f0863a; border-color:#f0863a55}
+.cat-special{color:#6aa0ff; border-color:#6aa0ff55}
+.cat-status{color:#b8b8c8; border-color:#b8b8c855}
+
+/* linhas de EV/IV */
+.ev-head,.ev-row{display:grid; grid-template-columns:96px 46px 70px 56px 1fr; gap:10px; align-items:center}
+.ev-head{font-size:11px; color:var(--muted); margin-bottom:4px; padding:0 2px}
+.ev-row{margin:5px 0}
+.ev-label{color:var(--muted); font-size:13px}
+.ev-final{font-weight:700; text-align:right}
+.ev-input,.iv-input{background:var(--panel2); color:var(--text); border:1px solid var(--line);
+  padding:5px 6px; border-radius:7px; width:100%; font-size:13px}
+.ev-bar{background:var(--panel2); height:8px; border-radius:5px; overflow:hidden}
+.ev-bar i{display:block; height:100%; background:var(--accent)}
+
+/* tabela de movimentos na ficha */
+.moves-filters{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0 10px}
+.moves-filters input,.moves-filters select{background:var(--panel2); color:var(--text);
+  border:1px solid var(--line); padding:7px 9px; border-radius:8px; font-size:13px}
+.moves-filters input{flex:1; min-width:140px}
+.mv-table-wrap{max-height:340px; overflow:auto; border:1px solid var(--line); border-radius:10px}
+.mv-table{width:100%; border-collapse:collapse; font-size:13px}
+.mv-table th,.mv-table td{padding:7px 10px; text-align:left; border-bottom:1px solid var(--line)}
+.mv-table thead th{position:sticky; top:0; background:var(--panel2); color:var(--muted); font-size:12px; z-index:1}
+.mv-table tbody tr:hover{background:#ffffff08}
+.mv-name{text-transform:capitalize; font-weight:600}
+.mv-how{color:var(--muted); white-space:nowrap}
 .slot{background:var(--panel); border:1px dashed var(--line); border-radius:var(--radius);
   min-height:150px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px}
 .slot.empty{color:var(--muted); font-size:26px}

@@ -111,13 +111,115 @@ window.Pokedex = (function () {
         <h3>Fraquezas defensivas</h3>
         <div class="weakness-grid">${weaknessChips(types)}</div>
         <h3>Movimentos <span class="muted">(${p.moves.length})</span></h3>
-        <div class="moves">
-          ${p.moves.slice(0, 40).map(m => `<span class="move">${cap(m.move.name.replace(/-/g, " "))}</span>`).join("")}
-          ${p.moves.length > 40 ? `<span class="move muted">+${p.moves.length - 40}…</span>` : ""}
-        </div>`;
+        <div class="moves-filters">
+          <input id="mv-search" type="search" placeholder="Buscar golpe…" autocomplete="off">
+          <select id="mv-method">
+            <option value="">Todos os métodos</option>
+            <option value="level-up">Por nível</option>
+            <option value="machine">MT/HM</option>
+            <option value="egg">Ovo</option>
+            <option value="tutor">Tutor</option>
+          </select>
+          <select id="mv-type"><option value="">Todos os tipos</option>
+            ${window.TYPES.map(t => `<option value="${t.id}">${t.pt}</option>`).join("")}
+          </select>
+          <select id="mv-cat"><option value="">Todas as categorias</option>
+            <option value="physical">Físico</option>
+            <option value="special">Especial</option>
+            <option value="status">Status</option>
+          </select>
+          <span id="mv-progress" class="muted small"></span>
+        </div>
+        <div id="mv-table" class="mv-table-wrap"></div>`;
+
+      renderMovesPanel(p);
     } catch (e) {
       body.innerHTML = `<p class="error">Não consegui carregar: ${e.message}</p>`;
     }
+  }
+
+  // ---- painel de movimentos com filtros + enriquecimento sob demanda ----
+  let mvState = null; // { list, enrich, token }
+  const catPT = (c) => c === "physical" ? "Físico" : c === "special" ? "Especial" : "Status";
+  const methodOf = (mv) =>
+    mv.methods.includes("level-up") ? "level-up"
+    : mv.methods.includes("machine") ? "machine"
+    : mv.methods.includes("egg") ? "egg" : "tutor";
+  const methodLabel = (mv) => {
+    const m = methodOf(mv);
+    if (m === "level-up") return mv.level ? `Nv ${mv.level}` : "Nível";
+    return { machine: "MT/HM", egg: "Ovo", tutor: "Tutor" }[m];
+  };
+
+  function renderMovesPanel(p) {
+    const list = window.API.normalizeMoves(p);
+    const token = Symbol("mv");
+    mvState = { list, enrich: {}, token };
+
+    ["mv-search", "mv-method", "mv-type", "mv-cat"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.oninput = el.onchange = drawMoves;
+    });
+    drawMoves();
+
+    // enriquece em segundo plano; re-desenha ao terminar (e no meio, para progresso)
+    const prog = document.getElementById("mv-progress");
+    window.API.enrichMoves(list.map(m => m.name), (done, total) => {
+      if (!mvState || mvState.token !== token) return; // ficha trocou: aborta UI
+      if (prog) prog.textContent = done < total ? `carregando detalhes… ${done}/${total}` : "";
+      if (done === total || done % 20 === 0) {
+        // atualiza o mapa a partir do cache já preenchido por getMove
+        drawMoves();
+      }
+    }).then(map => {
+      if (!mvState || mvState.token !== token) return;
+      mvState.enrich = map; if (prog) prog.textContent = "";
+      drawMoves();
+    });
+  }
+
+  function drawMoves() {
+    if (!mvState) return;
+    const wrap = document.getElementById("mv-table");
+    if (!wrap) return;
+    const q = (document.getElementById("mv-search")?.value || "").trim().toLowerCase();
+    const fMethod = document.getElementById("mv-method")?.value || "";
+    const fType = document.getElementById("mv-type")?.value || "";
+    const fCat = document.getElementById("mv-cat")?.value || "";
+
+    const rows = mvState.list.filter(mv => {
+      if (q && !mv.name.includes(q)) return false;
+      if (fMethod && !mv.methods.includes(fMethod)) return false;
+      const d = mvState.enrich[mv.name];
+      if (fType && (!d || d.type !== fType)) return false;
+      if (fCat && (!d || d.category !== fCat)) return false;
+      return true;
+    });
+
+    if (!rows.length) { wrap.innerHTML = `<p class="muted small">Nenhum golpe com esses filtros.</p>`; return; }
+
+    wrap.innerHTML = `
+      <table class="mv-table">
+        <thead><tr><th>Golpe</th><th>Tipo</th><th>Cat.</th><th>Pow</th><th>Prec</th><th>PP</th><th>Como</th></tr></thead>
+        <tbody>
+          ${rows.map(mv => {
+            const d = mvState.enrich[mv.name];
+            const typeCell = d && d.type
+              ? `<span class="badge" style="--c:${window.TYPE_COLOR[d.type]}">${window.TYPE_PT[d.type]}</span>`
+              : `<span class="muted">…</span>`;
+            const cat = d ? `<span class="mv-cat cat-${d.category}">${catPT(d.category)}</span>` : "…";
+            return `<tr>
+              <td class="mv-name">${cap(mv.name)}</td>
+              <td>${typeCell}</td>
+              <td>${cat}</td>
+              <td>${d ? (d.power ?? "—") : "…"}</td>
+              <td>${d ? (d.accuracy ?? "—") : "…"}</td>
+              <td>${d ? (d.pp ?? "—") : "…"}</td>
+              <td class="mv-how">${methodLabel(mv)}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
   }
 
   // Chips de fraqueza/resistência de UM Pokémon (para a ficha).
@@ -131,7 +233,7 @@ window.Pokedex = (function () {
     }).filter(Boolean).join("");
   }
 
-  function closeDetail() { $("#modal").hidden = true; }
+  function closeDetail() { $("#modal").hidden = true; mvState = null; }
 
   // ---- init ----
   async function init(list) {

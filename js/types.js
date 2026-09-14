@@ -62,6 +62,74 @@ window.effectiveness = function (attacker, defenderTypes) {
   }, 1);
 };
 
+/* ---- Status: chaves, rótulos e cálculo final (Gen 3+) ---- */
+window.STAT_KEYS = ["hp", "attack", "defense", "special-attack", "special-defense", "speed"];
+window.STAT_PT = {
+  "hp": "HP", "attack": "Ataque", "defense": "Defesa",
+  "special-attack": "Atq. Esp.", "special-defense": "Def. Esp.", "speed": "Velocidade",
+};
+window.STAT_SHORT = {
+  "hp": "HP", "attack": "Atk", "defense": "Def",
+  "special-attack": "SpA", "special-defense": "SpD", "speed": "Vel",
+};
+
+/* 25 naturezas: sobe +10% num status, desce -10% em outro (HP nunca é afetado). */
+window.NATURES = [
+  { id: "hardy",   up: null,              down: null },
+  { id: "lonely",  up: "attack",          down: "defense" },
+  { id: "brave",   up: "attack",          down: "speed" },
+  { id: "adamant", up: "attack",          down: "special-attack" },
+  { id: "naughty", up: "attack",          down: "special-defense" },
+  { id: "bold",    up: "defense",         down: "attack" },
+  { id: "docile",  up: null,              down: null },
+  { id: "relaxed", up: "defense",         down: "speed" },
+  { id: "impish",  up: "defense",         down: "special-attack" },
+  { id: "lax",     up: "defense",         down: "special-defense" },
+  { id: "timid",   up: "speed",           down: "attack" },
+  { id: "hasty",   up: "speed",           down: "defense" },
+  { id: "serious", up: null,              down: null },
+  { id: "jolly",   up: "speed",           down: "special-attack" },
+  { id: "naive",   up: "speed",           down: "special-defense" },
+  { id: "modest",  up: "special-attack",  down: "attack" },
+  { id: "mild",    up: "special-attack",  down: "defense" },
+  { id: "quiet",   up: "special-attack",  down: "speed" },
+  { id: "bashful", up: null,              down: null },
+  { id: "rash",    up: "special-attack",  down: "special-defense" },
+  { id: "calm",    up: "special-defense", down: "attack" },
+  { id: "gentle",  up: "special-defense", down: "defense" },
+  { id: "sassy",   up: "special-defense", down: "speed" },
+  { id: "careful", up: "special-defense", down: "special-attack" },
+  { id: "quirky",  up: null,              down: null },
+];
+window.NATURE_BY_ID = Object.fromEntries(window.NATURES.map(n => [n.id, n]));
+
+// Rótulo amigável: "Adamant (+Atk −SpA)".
+window.natureLabel = function (id) {
+  const n = window.NATURE_BY_ID[id];
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  if (!n || !n.up) return cap(id) + " (neutra)";
+  return `${cap(id)} (+${window.STAT_SHORT[n.up]} −${window.STAT_SHORT[n.down]})`;
+};
+
+// Multiplicador da nature para um status.
+window.natureMod = function (natureId, statKey) {
+  const n = window.NATURE_BY_ID[natureId];
+  if (!n) return 1;
+  if (n.up === statKey) return 1.1;
+  if (n.down === statKey) return 0.9;
+  return 1;
+};
+
+/* Status final a partir de base, IV, EV, nível e nature. */
+window.calcStat = function (statKey, base, iv, ev, level, natureId) {
+  const common = Math.floor(((2 * base + iv + Math.floor(ev / 4)) * level) / 100);
+  if (statKey === "hp") {
+    if (base === 1) return 1; // Shedinja
+    return common + level + 10;
+  }
+  return Math.floor((common + 5) * window.natureMod(natureId, statKey));
+};
+
 // Faixas de ID por geração (usadas no filtro da Pokédex).
 window.GENERATIONS = [
   { id: 1, label: "Gen 1 (Kanto)",   min: 1,   max: 151 },

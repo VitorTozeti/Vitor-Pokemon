@@ -28,7 +28,7 @@ window.API = (function () {
       // Cota cheia: limpa os detalhes de Pokémon (o mais volumoso) e tenta 1x.
       try {
         Object.keys(localStorage)
-          .filter(k => k.startsWith(CACHE_PREFIX + "pokemon:"))
+          .filter(k => k.startsWith(CACHE_PREFIX + "pokemon:") || k.startsWith(CACHE_PREFIX + "movei:"))
           .forEach(k => localStorage.removeItem(k));
         localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(value));
       } catch { /* desiste silenciosamente do cache */ }
@@ -116,6 +116,65 @@ window.API = (function () {
     return fetchJSON(`${BASE}/ability/${idOrName}`, `ability:${idOrName}`);
   }
 
+  // ---- movimentos ----
+  // Detalhe ENXUTO de um movimento (só o que a UI usa), cacheado em `movei:{name}`.
+  async function getMove(name) {
+    const key = `movei:${name}`;
+    const hit = cacheGet(key);
+    if (hit) return hit;
+    const res = await fetch(`${BASE}/move/${name}`);
+    if (!res.ok) throw new Error(`move ${res.status}`);
+    const d = await res.json();
+    const slim = {
+      name: d.name,
+      type: d.type ? d.type.name : null,
+      category: d.damage_class ? d.damage_class.name : "status", // physical|special|status
+      power: d.power, accuracy: d.accuracy, pp: d.pp,
+    };
+    cacheSet(key, slim);
+    return slim;
+  }
+
+  /* Normaliza a lista de movimentos de um Pokémon (vinda de /pokemon):
+   * junta os métodos de aprendizado e pega o nível de level-up mais baixo. */
+  function normalizeMoves(pokemon) {
+    return pokemon.moves.map(m => {
+      const methods = new Set();
+      let level = null;
+      for (const v of m.version_group_details) {
+        const meth = v.move_learn_method.name; // level-up | machine | egg | tutor
+        methods.add(meth);
+        if (meth === "level-up" && v.level_learned_at > 0) {
+          level = level == null ? v.level_learned_at : Math.min(level, v.level_learned_at);
+        }
+      }
+      return { name: m.move.name, methods: [...methods], level };
+    }).sort((a, b) => {
+      // level-up primeiro (por nível), depois o resto por nome
+      const al = a.methods.includes("level-up"), bl = b.methods.includes("level-up");
+      if (al && bl) return (a.level || 0) - (b.level || 0);
+      if (al) return -1; if (bl) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  /* Enriquece uma lista de nomes de movimento com detalhe, em lotes (concorrência). */
+  async function enrichMoves(names, onProgress, concurrency = 8) {
+    const out = {};
+    let done = 0;
+    const queue = names.slice();
+    async function worker() {
+      while (queue.length) {
+        const n = queue.shift();
+        try { out[n] = await getMove(n); } catch { out[n] = null; }
+        done++;
+        if (onProgress) onProgress(done, names.length);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, worker));
+    return out;
+  }
+
   function clearCache() {
     Object.keys(localStorage)
       .filter(k => k.startsWith(CACHE_PREFIX))
@@ -127,6 +186,7 @@ window.API = (function () {
     BASE, SPRITE, ARTWORK, idFromUrl,
     buildTypeIndex, getList, typesOf,
     getPokemon, getSpecies, getEvolutionChain, getAbility,
+    getMove, normalizeMoves, enrichMoves,
     clearCache,
   };
 })();
