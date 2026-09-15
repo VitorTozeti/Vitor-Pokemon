@@ -22,6 +22,8 @@ window.Team = (function () {
   let editing = -1;          // índice do membro em edição (-1 = nenhum), no time ativo
   let openSlot = -1;         // qual dos 4 slots de golpe está com o seletor aberto (-1 = nenhum)
   let picker = { q: "", method: "" }; // filtro do seletor de golpes aberto
+  let openItem = false;      // seletor de item aberto no editor?
+  let itemPick = { q: "", cat: "" }; // filtro do seletor de item aberto
   const moveEnrich = {};     // cache em memória: nome do pokémon -> { moveName: detalhe|null }
 
   // ================= PERSISTÊNCIA =================
@@ -199,12 +201,89 @@ window.Team = (function () {
     save(); render();
   }
 
+  // ================= IMPORTAR SETS (formato Pokémon Showdown) =================
+  const slug = (s) => String(s || "").trim().toLowerCase().replace(/[.'’]/g, "").replace(/\s+/g, "-");
+  const SHOWDOWN_STAT = { hp: "hp", atk: "attack", def: "defense", spa: "special-attack", spd: "special-defense", spe: "speed" };
+
+  // Recebe uma lista de sets já parseados (ver tools.js) e monta um NOVO time com eles.
+  async function importSets(sets, teamName) {
+    if (!sets || !sets.length) { toast("Nada pra importar."); return; }
+    const team = { id: uid(), name: (teamName || "Importado").slice(0, 30), members: [], meta: "" };
+    state.teams.push(team); state.active = team.id;
+    editing = -1; openSlot = -1; openItem = false;
+    save(); render();
+    toast(`Importando ${Math.min(sets.length, MAX)} Pokémon…`);
+
+    for (const set of sets.slice(0, MAX)) {
+      try {
+        const p = await window.API.getPokemon(slug(set.species));
+        const base = Object.fromEntries(p.stats.map(s => [s.stat.name, s.base_stat]));
+        const abilities = p.abilities.map(a => ({ name: a.ability.name, hidden: a.is_hidden }));
+        const b = makeBuild(abilities);
+        if (set.ability) {
+          const wanted = slug(set.ability);
+          const found = abilities.find(a => a.name === wanted);
+          if (found) b.ability = found.name;
+        }
+        if (set.item) { const id = slug(set.item); b.item = window.ITEM_BY_ID && window.ITEM_BY_ID[id] ? id : set.item; }
+        if (set.level) b.level = Math.max(1, Math.min(100, set.level));
+        if (set.nature && window.NATURE_BY_ID[slug(set.nature)]) b.nature = slug(set.nature);
+        if (set.evs) for (const k in set.evs) if (window.STAT_KEYS.includes(k)) b.evs[k] = Math.max(0, Math.min(EV_MAX, set.evs[k]));
+        if (set.ivs) for (const k in set.ivs) if (window.STAT_KEYS.includes(k)) b.ivs[k] = Math.max(0, Math.min(IV_MAX, set.ivs[k]));
+        const moves = (set.moves || []).slice(0, 4).map(n => ({ name: slug(n), type: null, category: "status" }));
+        while (moves.length < 4) moves.push(null);
+        b.moves = moves;
+        const member = {
+          name: p.name, id: p.id,
+          species: p.species ? p.species.name : p.name,
+          types: p.types.map(t => t.type.name),
+          base, abilities, moveList: window.API.normalizeMoves(p), build: b,
+        };
+        team.members.push(member); save(); render();
+        // enriquece os golpes escolhidos (tipo/categoria) pra análise ficar correta
+        enrichChosenMoves(member);
+        ensureMegaForms(member);
+      } catch (e) { /* espécie inválida no set: pula */ }
+    }
+    toast(`${team.name}: ${team.members.length} Pokémon importados.`);
+  }
+
+  // busca tipo/categoria dos golpes JÁ escolhidos de um membro e atualiza o build
+  async function enrichChosenMoves(member) {
+    const chosen = (member.build.moves || []).filter(Boolean);
+    for (const mv of chosen) {
+      if (mv.type) continue;
+      try {
+        const d = await window.API.getMove(mv.name);
+        if (member.build.moves.includes(mv)) { mv.type = d.type; mv.category = d.category; }
+      } catch {}
+    }
+    save();
+    if (activeTeam().members.includes(member)) { render(); renderAnalysis(); }
+  }
+
   // status finais calculados de um membro (usa os status base da MEGA quando escolhida)
   function finalStats(m) {
     const b = m.build;
     const base = activeForm(m).base;
     return Object.fromEntries(window.STAT_KEYS.map(k =>
       [k, window.calcStat(k, base[k], b.ivs[k], b.evs[k], b.level, b.nature)]));
+  }
+
+  // item escolhido no build (objeto do catálogo) ou null
+  function itemOf(m) {
+    return (m.build && m.build.item && window.ITEM_BY_ID) ? window.ITEM_BY_ID[m.build.item] : null;
+  }
+
+  // status FINAIS já ajustados pelo efeito do item (Choice Scarf ×1.5 Vel, Assault Vest ×1.5
+  // Def.Esp., Eviolite ×1.5 Def/Def.Esp. etc.) — usado no motor de análise e na calc de dano.
+  function adjustedStats(m) {
+    const fs = finalStats(m);
+    const it = itemOf(m);
+    if (it && it.mod) {
+      for (const k in it.mod) if (fs[k] != null) fs[k] = Math.floor(fs[k] * it.mod[k]);
+    }
+    return fs;
   }
 
   // ================= MOTOR DE ANÁLISE (time ativo) =================
@@ -238,9 +317,9 @@ window.Team = (function () {
     });
     const gaps = coverage.filter(c => c.best <= 1).map(c => c.type);
 
-    // Status agregados (usa os status FINAIS calculados)
+    // Status agregados (usa os status FINAIS já AJUSTADOS pelo item — Scarf/Band/AV/Eviolite…)
     const sum = Object.fromEntries(window.STAT_KEYS.map(k => [k, 0]));
-    for (const m of members) { const fs = finalStats(m); for (const k in sum) sum[k] += fs[k]; }
+    for (const m of members) { const fs = adjustedStats(m); for (const k in sum) sum[k] += fs[k]; }
     const n = members.length || 1;
     const avg = Object.fromEntries(Object.entries(sum).map(([k, v]) => [k, Math.round(v / n)]));
     const offense = Math.round((avg.attack + avg["special-attack"]) / 2);
@@ -251,7 +330,41 @@ window.Team = (function () {
     const incomplete = members.filter(m => (m.build.moves || []).filter(Boolean).length < 4);
 
     return { defense, sharedWeak, gaps, avg, offense, bulk, speed, usedMoves, incomplete,
+             itemNotes: itemCoherence(members),
              style: readStyle(offense, bulk, speed) };
+  }
+
+  // Checagem de COERÊNCIA de itens: combinações que não fazem sentido (item + moveset/forma).
+  // É barato e detectável só com o que já temos (build.moves, build.item, tipos) — sem fetch.
+  const STATUS_ITEMS_OK_WITH_STATUS = new Set(); // (reservado p/ exceções futuras)
+  function itemCoherence(members) {
+    const notes = [];
+    for (const m of members) {
+      const it = itemOf(m);
+      if (!it) continue;
+      const moves = (m.build.moves || []).filter(Boolean);
+      const hasDamage = moves.some(x => x.category && x.category !== "status");
+      const hasStatus = moves.some(x => x.category === "status");
+      const nm = cap(m.name);
+
+      // Colete de Combate bloqueia golpes de status: tê-los no moveset é conflito direto.
+      if (it.blocksStatus && hasStatus) {
+        notes.push({ level: "bad", text: `${nm}: Colete de Combate não deixa usar golpes de status, mas o moveset tem golpe(s) de status.` });
+      }
+      // Itens Choice travam num golpe só — golpe de status/setup vira armadilha.
+      if (it.locks && hasStatus && moves.length > 1) {
+        notes.push({ level: "warn", text: `${nm}: item Choice trava no 1º golpe usado — ter golpe de status/setup no moveset é arriscado.` });
+      }
+      // Itens de dano puro sem nenhum golpe de ataque são desperdício.
+      if ((it.dmg || it.se || it.phys || it.spec || it.locks) && moves.length && !hasDamage) {
+        notes.push({ level: "warn", text: `${nm}: ${it.pt} só ajuda ataques, mas o moveset não tem golpe de dano.` });
+      }
+      // Eviolite só funciona em quem ainda pode evoluir; mega evolução nunca pode.
+      if (it.nfeOnly && m.build.mega) {
+        notes.push({ level: "bad", text: `${nm}: Eviolite não faz efeito em Pokémon mega evoluído.` });
+      }
+    }
+    return notes;
   }
 
   function readStyle(offense, bulk, speed) {
@@ -295,12 +408,17 @@ window.Team = (function () {
         const nMoves = (m.build.moves || []).filter(Boolean).length;
         const form = activeForm(m);
         const megaTag = m.build.mega ? ` <span class="mega-tag">💎 mega</span>` : "";
+        const it = itemOf(m);
+        const itemLine = (it || m.build.item)
+          ? `<span class="slot-item">${it ? `<img src="${window.itemSprite(it.id)}" alt="" onerror="this.style.display='none'">` : ""}${escapeHtml(window.itemLabel(m.build.item))}</span>`
+          : "";
         slots.push(`
           <div class="slot filled${editing === i ? " active" : ""}" data-edit="${i}">
             <button class="slot-remove" data-remove="${m.name}" title="Remover">✕</button>
             <img src="${window.API.SPRITE(form.id)}" alt="${m.name}" onerror="this.style.visibility='hidden'">
             <span class="slot-name">${cap(m.name)}${megaTag}</span>
             <span class="card-types">${form.types.map(badge).join("")}</span>
+            ${itemLine}
             <span class="slot-info">${nMoves}/4 golpes · <span class="edit-hint">editar ✎</span></span>
           </div>`);
       } else {
@@ -457,6 +575,11 @@ window.Team = (function () {
     else if (fitCount > 0) reasons.neg.push(`perfil de status só combina parcialmente com a meta "${profile.label}"`);
     else reasons.neg.push(`perfil de status não combina com a meta "${profile.label}" (confira ofensivo/bulk/velocidade)`);
 
+    // coerência de itens (conflitos item×moveset pesam na nota)
+    const badItems = (a.itemNotes || []).filter(x => x.level === "bad");
+    if (badItems.length) { score -= badItems.length; badItems.forEach(x => reasons.neg.push(x.text)); }
+    else if (!(a.itemNotes || []).length && team.members.some(m => m.build.item)) reasons.pos.push("itens escolhidos são coerentes com os movesets");
+
     // tamanho do time
     if (n < 6) reasons.neg.push(`time incompleto — só ${n}/6 membros (mais Pokémon ampliam cobertura e opções)`);
 
@@ -585,9 +708,9 @@ window.Team = (function () {
         <label class="fld">Nível
           <input id="f-level" type="number" min="1" max="100" value="${b.level}">
         </label>
-        <label class="fld">Item (opcional)
-          <input id="f-item" type="text" placeholder="ex.: Leftovers" value="${b.item || ""}">
-        </label>
+        <div class="fld">Item (opcional)
+          ${itemPickerHTML(m)}
+        </div>
         ${megaOpts ? `<label class="fld">💎 Mega pedra (mega evolução)
           <select id="f-mega">${megaOpts}</select>
         </label>` : ""}
@@ -738,7 +861,7 @@ window.Team = (function () {
       ? { name, type: cached.type, category: cached.category }
       : { name, type: null, category: "status" };
     openSlot = -1;
-    save(); renderEditor(); renderAnalysis();
+    save(); render(); // render() atualiza a contagem de golpes no card do slot também
     if (!cached) {
       try {
         const d = await window.API.getMove(name);
@@ -790,18 +913,103 @@ window.Team = (function () {
       const c = picked[i];
       if (c) b.moves[slot] = { name: c.name, type: c.d.type, category: c.d.category };
     });
-    save(); renderEditor(); renderAnalysis();
+    save(); render(); // render() atualiza também a contagem de golpes no card do slot
     toast(picked.length ? `${picked.length} golpe(s) preenchido(s) automaticamente.` : "Nenhum golpe novo disponível.");
+  }
+
+  // ---- seletor de item (held item) ----
+  function itemPickerHTML(m) {
+    const it = itemOf(m);
+    const btn = it
+      ? `<img class="ip-icon" src="${window.itemSprite(it.id)}" alt="" onerror="this.style.display='none'">
+         <span class="ip-name">${escapeHtml(it.pt)}</span>`
+      : (m.build.item
+          ? `<span class="ip-name">${escapeHtml(m.build.item)}</span>` // texto livre antigo (migração)
+          : `<span class="ip-name ip-empty">— sem item —</span>`);
+    return `
+      <div class="item-picker${openItem ? " open" : ""}">
+        <button type="button" class="item-picker-btn" id="item-toggle">
+          ${btn}<span class="chev">${openItem ? "▲" : "▼"}</span>
+        </button>
+        ${openItem ? itemPanelHTML() : ""}
+      </div>`;
+  }
+
+  function itemPanelHTML() {
+    const cats = (window.ITEM_CATS || []).map(c =>
+      `<button type="button" class="mvp-chip${itemPick.cat === c.id ? " active" : ""}" data-item-cat="${c.id}">${c.label}</button>`).join("");
+    return `
+      <div class="item-picker-panel">
+        <input class="mvp-search" type="search" placeholder="Buscar item…" id="item-search" value="${escapeHtml(itemPick.q)}" autocomplete="off">
+        <div class="mvp-filters">${cats}</div>
+        <button type="button" class="mvp-clear" id="item-clear">✕ deixar sem item</button>
+        <div class="mvp-list" id="item-list"></div>
+      </div>`;
+  }
+
+  function filteredItems() {
+    const q = normSearch(itemPick.q);
+    return (window.ITEMS || []).filter(it => {
+      if (itemPick.cat && it.cat !== itemPick.cat) return false;
+      if (q && !normSearch(it.pt).includes(q) && !normSearch(it.id).includes(q)) return false;
+      return true;
+    });
+  }
+
+  function renderItemList(m) {
+    const wrap = document.getElementById("item-list");
+    if (!wrap) return;
+    const rows = filteredItems();
+    wrap.innerHTML = rows.length
+      ? rows.map(it => `
+        <div class="ip-row${m.build.item === it.id ? " selected" : ""}" data-pick-item="${it.id}">
+          <img class="ip-icon" src="${window.itemSprite(it.id)}" alt="" onerror="this.style.visibility='hidden'">
+          <div class="ip-row-txt">
+            <span class="ip-row-name">${escapeHtml(it.pt)}</span>
+            <span class="ip-row-eff">${escapeHtml(it.effect)}</span>
+          </div>
+        </div>`).join("")
+      : `<p class="mvp-empty">Nenhum item encontrado.</p>`;
+    wrap.onclick = (e) => {
+      const row = e.target.closest("[data-pick-item]");
+      if (!row) return;
+      m.build.item = row.dataset.pickItem;
+      openItem = false;
+      save(); renderEditor(); render(); renderAnalysis();
+    };
+  }
+
+  function wireItemPicker(m) {
+    const box = $("#team-editor");
+    const toggle = box.querySelector("#item-toggle");
+    if (toggle) toggle.onclick = () => {
+      openItem = !openItem;
+      itemPick = { q: "", cat: "" };
+      renderEditor();
+    };
+    if (!openItem) return;
+    renderItemList(m);
+    const search = box.querySelector("#item-search");
+    if (search) search.oninput = (e) => { itemPick.q = e.target.value; renderItemList(m); };
+    box.querySelectorAll("[data-item-cat]").forEach(chip => {
+      chip.onclick = () => {
+        itemPick.cat = chip.dataset.itemCat;
+        box.querySelectorAll("[data-item-cat]").forEach(c => c.classList.toggle("active", c.dataset.itemCat === itemPick.cat));
+        renderItemList(m);
+      };
+    });
+    const clear = box.querySelector("#item-clear");
+    if (clear) clear.onclick = () => { m.build.item = ""; openItem = false; save(); renderEditor(); render(); renderAnalysis(); };
   }
 
   function wireEditor(m) {
     const b = m.build;
     const box = $("#team-editor");
-    box.querySelector("#editor-close").onclick = () => { editing = -1; openSlot = -1; render(); };
+    box.querySelector("#editor-close").onclick = () => { editing = -1; openSlot = -1; openItem = false; render(); };
+    wireItemPicker(m);
     const autoBtn = box.querySelector("#auto-fill-moves");
     if (autoBtn) autoBtn.onclick = () => autoFillMoves(m);
     box.querySelector("#f-ability").onchange = (e) => { b.ability = e.target.value; save(); };
-    box.querySelector("#f-item").oninput = (e) => { b.item = e.target.value; save(); };
     const megaSel = box.querySelector("#f-mega");
     if (megaSel) megaSel.onchange = (e) => selectMega(m, e.target.value || null);
     box.querySelector("#f-nature").onchange = (e) => { b.nature = e.target.value; save(); renderEditor(); renderAnalysis(); };
@@ -863,7 +1071,7 @@ window.Team = (function () {
         };
       });
       panel.querySelector("[data-mvp-clear]").onclick = () => {
-        b.moves[i] = null; openSlot = -1; save(); renderEditor(); renderAnalysis();
+        b.moves[i] = null; openSlot = -1; save(); render();
       };
       // clique em cada golpe é tratado por delegação dentro de renderMoveList (o wrap
       // sobrevive a buscas/filtros, as linhas não).
@@ -954,6 +1162,8 @@ window.Team = (function () {
               : `<li class="good">Defesa equilibrada, sem fraqueza dominante.</li>`}
             ${a.speed < 200 ? `<li>Time relativamente lento — considere um membro veloz.</li>` : ""}
             ${a.bulk < 170 ? `<li>Pouca resistência — um "muro" (alto HP/Def) aumenta a longevidade.</li>` : ""}
+            ${(a.itemNotes || []).map(n => `<li class="${n.level === "bad" ? "error" : "warn-note"}">${n.level === "bad" ? "⛔" : "⚠️"} ${escapeHtml(n.text)}</li>`).join("")}
+            ${!(a.itemNotes || []).length ? `<li class="good">Itens coerentes com os movesets.</li>` : ""}
           </ul>
         </section>
       </div>
@@ -1001,7 +1211,7 @@ window.Team = (function () {
       if (ed) {
         const i = Number(ed.dataset.edit);
         editing = editing === i ? -1 : i;
-        openSlot = -1;
+        openSlot = -1; openItem = false;
         render();
         if (editing >= 0) $("#team-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
@@ -1013,5 +1223,13 @@ window.Team = (function () {
     render();
   }
 
-  return { init, add, remove, clear: clearMembers, analyze };
+  return {
+    init, add, remove, clear: clearMembers, analyze,
+    // API pública para as ferramentas (tools.js): exportar/importar/compartilhar/calc de dano
+    getActiveTeam: activeTeam,
+    getState: () => state,
+    finalStats, adjustedStats, activeForm, itemOf,
+    importSets,
+    SHOWDOWN_STAT,
+  };
 })();

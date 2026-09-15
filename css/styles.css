@@ -31,12 +31,18 @@
   --glow-1:#251f3c;
   --glow-2:#2a1620;
 
+  --topbar-bg:rgba(10,11,16,.72);
+  --overlay:rgba(4,5,9,.72);
+  --badge-text:#111;
+  --on-accent:#fff;
+
   --radius-sm:10px;
   --radius:16px;
   --radius-lg:22px;
   --shadow:0 16px 40px -14px rgba(0,0,0,.6);
   --shadow-sm:0 6px 18px -8px rgba(0,0,0,.55);
   --ring:0 0 0 3px var(--accent-dim);
+  color-scheme:dark;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -104,6 +110,26 @@ body{
   --ok:#2ee6a6; --warn:#ffb020; --danger:#ff5c5c;
   --ring:0 0 0 3px var(--accent-dim);
 }
+:root[data-theme="ember"]{
+  --bg-grad-1:#2a160f; --bg-grad-2:#140a08;
+  --panel:#1e120c; --panel-2:#2b1a10; --panel-3:#382115;
+  --glow-1:#3d1f12; --glow-2:#3a2a10;
+  --accent:#ff6a3d; --accent-2:#ff9a6a; --accent-strong:#e04f22;
+  --accent-dim:rgba(255,106,61,.16); --accent-line:rgba(255,106,61,.42);
+  --gold:#ffc23d; --gold-dim:rgba(255,194,61,.16);
+  --ok:#2ee6a6; --warn:#ffc23d; --danger:#ff5c5c;
+  --ring:0 0 0 3px var(--accent-dim);
+}
+:root[data-theme="aurora"]{
+  --bg-grad-1:#0c2226; --bg-grad-2:#08131a;
+  --panel:#0d1f22; --panel-2:#122b2f; --panel-3:#173a3e;
+  --glow-1:#123a3a; --glow-2:#1f2350;
+  --accent:#10d9c4; --accent-2:#5ff0e0; --accent-strong:#0bb0a0;
+  --accent-dim:rgba(16,217,196,.16); --accent-line:rgba(16,217,196,.42);
+  --gold:#7c5cff; --gold-dim:rgba(124,92,255,.16);
+  --ok:#2ee6a6; --warn:#ffcf4d; --danger:#ff5c7a;
+  --ring:0 0 0 3px var(--accent-dim);
+}
 a{color:#8ab4ff}
 h1,h2,h3,h4{margin:.2em 0; letter-spacing:.2px}
 .muted{color:var(--muted)} .small{font-size:.85em}
@@ -117,7 +143,7 @@ h1,h2,h3,h4{margin:.2em 0; letter-spacing:.2px}
 .topbar{
   position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:12px;
   align-items:center; justify-content:space-between;
-  padding:14px 22px; background:rgba(10,11,16,.72); backdrop-filter:blur(14px) saturate(140%);
+  padding:14px 22px; background:var(--topbar-bg); backdrop-filter:blur(14px) saturate(140%);
   border-bottom:1px solid var(--line);
 }
 .brand{display:flex; align-items:center; gap:11px}
@@ -217,7 +243,7 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .btn-icon:hover{color:#fff; border-color:var(--accent-line); background:var(--accent-dim)}
 
 /* ---- modal ficha ---- */
-.modal{position:fixed; inset:0; z-index:40; background:rgba(4,5,9,.72); backdrop-filter:blur(3px); display:flex;
+.modal{position:fixed; inset:0; z-index:40; background:var(--overlay); backdrop-filter:blur(3px); display:flex;
   align-items:flex-start; justify-content:center; padding:26px; overflow:auto}
 .modal-card{position:relative; width:min(780px,100%); background:linear-gradient(165deg,var(--panel),var(--panel-2));
   border:1px solid var(--line); border-radius:var(--radius-lg); padding:24px; box-shadow:var(--shadow)}
@@ -526,11 +552,162 @@ input[type="range"]::-moz-range-track{background:var(--panel-2); height:6px; bor
 .evo-arrow span{font-size:18px; line-height:1}
 .evo-arrow small{font-size:10px; text-align:center; max-width:90px; white-space:normal}
 
+/* ============================================================================
+   MODO CLARO — sobrescreve só as variáveis ESTRUTURAIS (fundo, painéis, texto,
+   linhas). Vem DEPOIS dos blocos de paleta pra vencer por ordem de fonte, mas
+   NÃO mexe em --accent* — assim a cor de acento escolhida continua valendo.
+   ============================================================================ */
+:root[data-mode="light"]{
+  --bg:#f4f6fb;
+  --bg-grad-1:#ffffff; --bg-grad-2:#eef1f8;
+  --panel:#ffffff; --panel-2:#f4f6fb; --panel-3:#e9edf5;
+  --line:rgba(15,23,42,.10); --line-strong:rgba(15,23,42,.18);
+  --text:#141a2b; --muted:#5b6478; --muted-2:#8a93a8;
+  --glow-1:rgba(0,0,0,0); --glow-2:rgba(0,0,0,0);
+  --topbar-bg:rgba(255,255,255,.78);
+  --overlay:rgba(20,26,43,.42);
+  --shadow:0 18px 44px -18px rgba(20,26,43,.28);
+  --shadow-sm:0 8px 20px -12px rgba(20,26,43,.28);
+  --badge-text:#111; --on-accent:#fff;
+  color-scheme:light;
+}
+:root[data-mode="light"] a{color:var(--accent-strong)}
+:root[data-mode="light"] .card img,
+:root[data-mode="light"] .slot.filled img{filter:drop-shadow(0 6px 10px rgba(20,26,43,.18))}
+:root[data-mode="light"] .tab-badge{background:rgba(0,0,0,.10)}
+:root[data-mode="light"] .tab.active .tab-badge{background:rgba(255,255,255,.28)}
+:root[data-mode="light"] .mv-table tbody tr:hover{background:rgba(20,26,43,.04)}
+:root[data-mode="light"] .typechart td{color:#fff}
+:root[data-mode="light"] .lg-gray{background:#9aa3b5}
+:root[data-mode="light"] .badge{text-shadow:0 1px 0 rgba(255,255,255,.35)}
+
+/* botões usam a cor de contraste do acento */
+.tab.active,.btn-primary,.card-add,.team-chip.active{color:var(--on-accent)}
+
+/* ============================================================================
+   COMPONENTES NOVOS
+   ============================================================================ */
+
+/* barra de ferramentas do time */
+.team-tools{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.team-tools .btn-ghost{padding:8px 12px; font-size:13px}
+
+/* item na slot do time */
+.slot-item{display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); margin-top:2px}
+.slot-item img{width:18px; height:18px; image-rendering:pixelated}
+
+/* seletor de item no editor (mesma linguagem do seletor de golpe) */
+.item-picker{position:relative}
+.item-picker-btn{
+  width:100%; display:flex; align-items:center; gap:8px; background:var(--panel-2); border:1px solid var(--line);
+  border-radius:var(--radius-sm); padding:9px 10px; cursor:pointer; color:var(--text); text-align:left;
+  font-size:14px; font-weight:400; text-transform:none; letter-spacing:normal; transition:border-color .15s, box-shadow .15s;
+}
+.item-picker-btn:hover{border-color:var(--accent-line)}
+.item-picker.open .item-picker-btn{border-color:var(--accent-line); box-shadow:var(--ring)}
+.item-picker-btn .ip-name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.item-picker-btn .ip-empty{color:var(--muted)}
+.item-picker-btn .chev{color:var(--muted); font-size:11px}
+.ip-icon{width:22px; height:22px; image-rendering:pixelated; flex:0 0 auto}
+.item-picker-panel{
+  position:absolute; right:0; left:auto; top:calc(100% + 6px); z-index:16;
+  background:var(--panel-3); border:1px solid var(--accent-line); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:10px; width:min(380px,92vw); max-width:min(380px,86vw);
+}
+.ip-row{display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:9px; cursor:pointer;
+  border:1px solid transparent; transition:background .1s}
+.ip-row:hover,.ip-row.selected{background:var(--accent-dim); border-color:var(--accent-line)}
+.ip-row-txt{display:flex; flex-direction:column; min-width:0}
+.ip-row-name{font-size:13px; font-weight:700}
+.ip-row-eff{font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+/* aviso "amarelo" nas sugestões (coerência de item) */
+.warn-note{color:var(--warn)}
+
+/* modal de importar/exportar */
+.io-card{width:min(620px,100%)}
+.io-textarea{width:100%; resize:vertical; background:var(--panel-2); color:var(--text); border:1px solid var(--line);
+  border-radius:var(--radius-sm); padding:12px 14px; font:13px/1.5 ui-monospace,"Cascadia Code",Consolas,monospace;
+  margin:12px 0; min-height:180px}
+.io-textarea:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
+.io-actions{display:flex; gap:10px; flex-wrap:wrap}
+
+/* modal / calculadora de dano */
+.dmg-card{width:min(560px,100%)}
+.dmg-grid{display:grid; gap:12px; grid-template-columns:repeat(3,1fr); margin:14px 0}
+.dmg-grid .fld select{background:var(--panel-2); color:var(--text); border:1px solid var(--line);
+  padding:9px 11px; border-radius:var(--radius-sm); font-size:14px; font-weight:400; text-transform:none; letter-spacing:normal}
+.dmg-grid .fld select:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
+.dmg-result{background:linear-gradient(160deg,var(--panel),var(--panel-2)); border:1px solid var(--line);
+  border-radius:var(--radius); padding:16px 18px; margin-top:6px}
+.dmg-head{display:flex; align-items:center; gap:12px; justify-content:center; flex-wrap:wrap; margin-bottom:12px}
+.dmg-head img{width:56px; height:56px; image-rendering:pixelated}
+.dmg-arrow{display:flex; align-items:center; gap:6px; font-weight:700; text-transform:capitalize}
+.dmg-nums{text-align:center}
+.dmg-big{font-size:30px; font-weight:800; line-height:1}
+.dmg-big small{font-size:14px; color:var(--muted); font-weight:600}
+.dmg-pct{color:var(--muted); font-weight:600; margin-top:4px}
+.dmg-bar{position:relative; height:12px; border-radius:99px; background:var(--panel-3);
+  box-shadow:inset 0 0 0 1px var(--line); margin:12px 0; overflow:hidden}
+.dmg-bar i{position:absolute; left:0; top:0; height:100%; background:linear-gradient(90deg,var(--accent),var(--gold)); border-radius:99px}
+.dmg-bar b{position:absolute; left:0; top:0; height:100%; background:var(--accent-strong); opacity:.55; border-radius:99px}
+.dmg-ko{font-weight:800; text-align:center; margin:6px 0 4px; font-size:15px}
+.dmg-ohko{color:var(--danger)} .dmg-maybe{color:var(--warn)} .dmg-safe{color:var(--ok)} .dmg-immune{color:var(--muted)}
+
+/* configurações: grade de modo (claro/escuro/auto) */
+.mode-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:12px 0 6px}
+.mode-btn{display:flex; flex-direction:column; align-items:center; gap:6px; background:var(--panel-2);
+  border:1px solid var(--line); border-radius:var(--radius); padding:14px 8px; cursor:pointer; color:var(--text);
+  font-weight:600; font-size:13px; transition:.15s}
+.mode-btn:hover{border-color:var(--accent-line); transform:translateY(-2px)}
+.mode-btn.active{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim)}
+.mode-icon{font-size:22px}
+.settings-card h3{margin-top:18px}
+
+/* ============================================================================
+   RESPONSIVIDADE
+   ============================================================================ */
+@media (max-width:880px){
+  main{padding:18px 16px}
+  .foot{padding:16px}
+}
+@media (max-width:720px){
+  .topbar{padding:12px 16px}
+  .topbar-right{width:100%; justify-content:space-between}
+  .tabs{flex:1; justify-content:center}
+  .tab{padding:9px 14px}
+  .team-head{flex-direction:column; align-items:stretch; gap:10px}
+  .team-head h2{text-align:center}
+  .team-tools{justify-content:center}
+  .dmg-grid{grid-template-columns:1fr}
+  .analysis-grid{grid-template-columns:1fr}
+  .mode-grid{grid-template-columns:1fr}
+}
 @media (max-width:560px){
   .brand h1{font-size:17px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr)); gap:10px}
   .card img{width:80px;height:80px}
+  .team-slots{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
   .detail-art{width:130px;height:130px}
+  .detail-hero{padding:18px; gap:16px}
+  .detail-hero h2{font-size:26px}
+  .modal{padding:14px}
+  .modal-card{padding:18px}
   .move-picker-panel{width:min(320px,86vw)}
+  .moves-editor{grid-template-columns:1fr}
   .ev-row{grid-template-columns:1fr; gap:4px}
   .ev-head{display:none}
+  .tabs{gap:3px}
+  .tab{padding:8px 11px; font-size:12.5px}
+  .team-tools .btn-ghost{flex:1; min-width:calc(50% - 4px); justify-content:center; text-align:center}
+}
+@media (max-width:400px){
+  .brand h1 span{display:none}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(108px,1fr))}
+  .card img{width:68px;height:68px}
+}
+
+/* respeita quem pediu menos animação */
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important; transition-duration:.001ms!important}
 }
