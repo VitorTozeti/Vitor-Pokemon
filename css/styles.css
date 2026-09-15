@@ -268,7 +268,19 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .flavor{color:var(--muted); font-style:italic; margin:14px 0; line-height:1.6}
 .detail-meta{display:flex; gap:20px; flex-wrap:wrap; margin:10px 0 4px}
 .detail-meta b{color:var(--muted); font-weight:600; margin-right:4px}
-.abilities{margin:6px 0 12px; padding-left:18px} .abilities em{color:var(--gold)}
+/* habilidades — cartões com nome + efeito (o que a habilidade faz) */
+.abilities{list-style:none; margin:8px 0 14px; padding:0; display:grid; gap:10px;
+  grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.ability-card{background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius-sm);
+  padding:11px 13px; transition:border-color .18s ease, transform .18s ease}
+.ability-card:hover{border-color:var(--accent-line); transform:translateY(-1px)}
+.ability-head{display:flex; align-items:center; gap:8px; margin-bottom:5px}
+.ability-name{font-weight:800; font-size:14px; color:var(--text)}
+.ability-tag{font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.4px;
+  color:var(--gold); background:var(--gold-dim); border:1px solid var(--gold-dim);
+  padding:2px 7px; border-radius:999px}
+.ability-effect{color:var(--muted); font-size:12.5px; line-height:1.5; margin:0}
+.ability-effect.muted{opacity:.7; font-style:italic}
 
 /* status */
 .stats{display:flex; flex-direction:column; gap:8px; margin:8px 0 14px}
@@ -434,6 +446,16 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .slot-remove{position:absolute; top:6px; right:6px; width:24px; height:24px; border-radius:50%;
   background:var(--panel-2); border:1px solid var(--line); color:var(--text); cursor:pointer}
 .slot-remove:hover{background:var(--accent); color:#fff; border-color:var(--accent)}
+
+/* editor: efeito da habilidade selecionada + dica da mega pedra */
+.fld-ability{position:relative}
+.fld-ability .ability-effect{margin-top:6px; padding:7px 9px; background:var(--panel-3);
+  border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:8px;
+  color:var(--muted); font-size:12px; line-height:1.45}
+.fld-mega .mega-stone-hint{display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--muted)}
+.fld-mega .mega-stone-hint img{width:26px; height:26px; image-rendering:pixelated;
+  background:var(--gold-dim); border:1px solid color-mix(in srgb,var(--gold) 40%,transparent); border-radius:8px; padding:2px}
+.fld-mega .mega-stone-hint b{color:var(--gold)}
 
 /* meta do time */
 .team-meta{background:linear-gradient(160deg,var(--panel),var(--panel-2)); border:1px solid var(--line);
@@ -663,6 +685,18 @@ input[type="range"]::-moz-range-track{background:var(--panel-2); height:6px; bor
 .mode-btn.active{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim)}
 .mode-icon{font-size:22px}
 .settings-card h3{margin-top:18px}
+.settings-footer{margin-top:20px; padding-top:14px; border-top:1px solid var(--line); display:flex; justify-content:flex-end}
+
+/* animações reduzidas por escolha do usuário (Configurações → Animações → Reduzidas) */
+:root[data-anim="off"] *,
+:root[data-anim="off"] *::before,
+:root[data-anim="off"] *::after{
+  animation-duration:.001ms !important; animation-iteration-count:1 !important;
+  transition-duration:.001ms !important; scroll-behavior:auto !important;
+}
+:root[data-anim="off"] .card:hover,
+:root[data-anim="off"] .ability-card:hover,
+:root[data-anim="off"] .mode-btn:hover{transform:none}
 
 /* ============================================================================
    RESPONSIVIDADE

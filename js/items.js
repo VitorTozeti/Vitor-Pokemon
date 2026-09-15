@@ -70,6 +70,75 @@ window.ITEMS = [
   { id: "salac-berry",  pt: "Fruta Salac (Salac Berry)",     cat: "berry", effect: "+1 de Velocidade quando o HP fica baixo.", mod: { speed: 1.15 } },
 ];
 
+/* ---- MEGA PEDRAS ----------------------------------------------------------------
+ * Cada mega evolução exige a sua Mega Pedra segurada. Mapeamos o nome da VARIEDADE mega da
+ * PokéAPI (ex.: "charizard-mega-x") -> { id: slug da pedra p/ o sprite, pt: rótulo }.
+ * O editor usa isto para, ao escolher uma mega, já segurar a pedra certa (e vice-versa).
+ */
+window.MEGA_STONES = {
+  "venusaur-mega":      { id: "venusaurite",    pt: "Venusaurita" },
+  "charizard-mega-x":   { id: "charizardite-x", pt: "Charizardita X" },
+  "charizard-mega-y":   { id: "charizardite-y", pt: "Charizardita Y" },
+  "blastoise-mega":     { id: "blastoisinite",  pt: "Blastoisinita" },
+  "beedrill-mega":      { id: "beedrillite",    pt: "Beedrillita" },
+  "pidgeot-mega":       { id: "pidgeotite",     pt: "Pidgeotita" },
+  "alakazam-mega":      { id: "alakazite",      pt: "Alakazita" },
+  "slowbro-mega":       { id: "slowbronite",    pt: "Slowbronita" },
+  "gengar-mega":        { id: "gengarite",      pt: "Gengarita" },
+  "kangaskhan-mega":    { id: "kangaskhanite",  pt: "Kangaskhanita" },
+  "pinsir-mega":        { id: "pinsirite",      pt: "Pinsirita" },
+  "gyarados-mega":      { id: "gyaradosite",    pt: "Gyaradosita" },
+  "aerodactyl-mega":    { id: "aerodactylite",  pt: "Aerodactylita" },
+  "mewtwo-mega-x":      { id: "mewtwonite-x",   pt: "Mewtwonita X" },
+  "mewtwo-mega-y":      { id: "mewtwonite-y",   pt: "Mewtwonita Y" },
+  "ampharos-mega":      { id: "ampharosite",    pt: "Ampharosita" },
+  "steelix-mega":       { id: "steelixite",     pt: "Steelixita" },
+  "scizor-mega":        { id: "scizorite",      pt: "Scizorita" },
+  "heracross-mega":     { id: "heracronite",    pt: "Heracronita" },
+  "houndoom-mega":      { id: "houndoominite",  pt: "Houndoominita" },
+  "tyranitar-mega":     { id: "tyranitarite",   pt: "Tyranitarita" },
+  "sceptile-mega":      { id: "sceptilite",     pt: "Sceptilita" },
+  "blaziken-mega":      { id: "blazikenite",    pt: "Blazikenita" },
+  "swampert-mega":      { id: "swampertite",    pt: "Swampertita" },
+  "gardevoir-mega":     { id: "gardevoirite",   pt: "Gardevoirita" },
+  "sableye-mega":       { id: "sablenite",      pt: "Sablenita" },
+  "mawile-mega":        { id: "mawilite",       pt: "Mawilita" },
+  "aggron-mega":        { id: "aggronite",      pt: "Aggronita" },
+  "medicham-mega":      { id: "medichamite",    pt: "Medichamita" },
+  "manectric-mega":     { id: "manectite",      pt: "Manectita" },
+  "sharpedo-mega":      { id: "sharpedonite",   pt: "Sharpedonita" },
+  "camerupt-mega":      { id: "cameruptite",    pt: "Cameruptita" },
+  "altaria-mega":       { id: "altarianite",    pt: "Altarianita" },
+  "banette-mega":       { id: "banettite",      pt: "Banettita" },
+  "absol-mega":         { id: "absolite",       pt: "Absolita" },
+  "glalie-mega":        { id: "glalitite",      pt: "Glalitita" },
+  "salamence-mega":     { id: "salamencite",    pt: "Salamencita" },
+  "metagross-mega":     { id: "metagrossite",   pt: "Metagrossita" },
+  "latias-mega":        { id: "latiasite",      pt: "Latiasita" },
+  "latios-mega":        { id: "latiosite",      pt: "Latiosita" },
+  "lopunny-mega":       { id: "lopunnite",      pt: "Lopunnita" },
+  "garchomp-mega":      { id: "garchompite",    pt: "Garchompita" },
+  "lucario-mega":       { id: "lucarionite",    pt: "Lucarionita" },
+  "abomasnow-mega":     { id: "abomasite",      pt: "Abomasita" },
+  "gallade-mega":       { id: "galladite",      pt: "Galladita" },
+  "audino-mega":        { id: "audinite",       pt: "Audinita" },
+  "diancie-mega":       { id: "diancite",       pt: "Diancita" },
+};
+
+// slug da pedra -> nome da variedade mega (índice reverso, p/ ir da pedra pra mega)
+window.STONE_TO_MEGA = Object.fromEntries(
+  Object.entries(window.MEGA_STONES).map(([mega, s]) => [s.id, mega])
+);
+
+// injeta as mega pedras no catálogo de itens (categoria "mega") p/ aparecerem no seletor
+Object.entries(window.MEGA_STONES).forEach(([mega, s]) => {
+  window.ITEMS.push({
+    id: s.id, pt: `${s.pt} (Mega Pedra)`, cat: "mega",
+    effect: `Permite a mega evolução para ${mega.split("-").map(w => w === "x" || w === "y" ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(" ")} durante a batalha.`,
+    megaFor: mega,
+  });
+});
+
 window.ITEM_BY_ID = Object.fromEntries(window.ITEMS.map(i => [i.id, i]));
 
 // Sprite oficial do item (mesmo repositório de sprites usado pelos Pokémon).
@@ -84,6 +153,7 @@ window.ITEM_CATS = [
   { id: "status",  label: "Status" },
   { id: "utility", label: "Utilidade" },
   { id: "berry",   label: "Frutas" },
+  { id: "mega",    label: "Mega Pedras" },
 ];
 
 /* Resolve o rótulo de exibição de um item guardado num build.

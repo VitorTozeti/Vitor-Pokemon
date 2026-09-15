@@ -10,6 +10,7 @@
 window.Settings = (function () {
   const KEY = "poke:theme";
   const MODE_KEY = "poke:mode";
+  const ANIM_KEY = "poke:anim";
   const $ = (s) => document.querySelector(s);
 
   const PALETTES = [
@@ -29,11 +30,19 @@ window.Settings = (function () {
     { id: "auto",  label: "Automático",  icon: "🖥️" },
   ];
 
+  const ANIMS = [
+    { id: "on",  label: "Ligadas",   icon: "✨" },
+    { id: "off", label: "Reduzidas", icon: "🚫" },
+  ];
+
   function current() {
     try { return localStorage.getItem(KEY) || "crystal"; } catch { return "crystal"; }
   }
   function currentMode() {
     try { return localStorage.getItem(MODE_KEY) || "dark"; } catch { return "dark"; }
+  }
+  function currentAnim() {
+    try { return localStorage.getItem(ANIM_KEY) || "on"; } catch { return "on"; }
   }
 
   function apply(id) {
@@ -53,6 +62,11 @@ window.Settings = (function () {
     if (!MODES.some(m => m.id === mode)) mode = "dark";
     document.documentElement.setAttribute("data-mode", resolveMode(mode));
     try { localStorage.setItem(MODE_KEY, mode); } catch {}
+  }
+  function applyAnim(anim) {
+    if (!ANIMS.some(a => a.id === anim)) anim = "on";
+    document.documentElement.setAttribute("data-anim", anim);
+    try { localStorage.setItem(ANIM_KEY, anim); } catch {}
   }
 
   function renderGrid() {
@@ -76,12 +90,28 @@ window.Settings = (function () {
       </button>`).join("");
   }
 
-  function open() { renderGrid(); renderModeGrid(); $("#settings-modal").hidden = false; }
+  function renderAnimGrid() {
+    const grid = $("#anim-grid");
+    if (!grid) return;
+    const active = currentAnim();
+    grid.innerHTML = ANIMS.map(a => `
+      <button type="button" class="mode-btn${a.id === active ? " active" : ""}" data-anim-pick="${a.id}">
+        <span class="mode-icon">${a.icon}</span><span>${a.label}</span>
+      </button>`).join("");
+  }
+
+  function open() { renderGrid(); renderModeGrid(); renderAnimGrid(); $("#settings-modal").hidden = false; }
   function close() { $("#settings-modal").hidden = true; }
+
+  function resetAll() {
+    apply("crystal"); applyMode("dark"); applyAnim("on");
+    renderGrid(); renderModeGrid(); renderAnimGrid();
+  }
 
   function init() {
     apply(current());
     applyMode(currentMode());
+    applyAnim(currentAnim());
     // se estiver em "auto", reage à mudança do sistema
     if (window.matchMedia) {
       try {
@@ -108,8 +138,16 @@ window.Settings = (function () {
       if (!b) return;
       applyMode(b.dataset.modePick); renderModeGrid();
     });
+    const animGrid = $("#anim-grid");
+    if (animGrid) animGrid.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-anim-pick]");
+      if (!b) return;
+      applyAnim(b.dataset.animPick); renderAnimGrid();
+    });
+    const resetBtn = $("#settings-reset");
+    if (resetBtn) resetBtn.addEventListener("click", resetAll);
   }
 
   document.addEventListener("DOMContentLoaded", init);
-  return { apply, current, applyMode, currentMode };
+  return { apply, current, applyMode, currentMode, applyAnim, currentAnim };
 })();

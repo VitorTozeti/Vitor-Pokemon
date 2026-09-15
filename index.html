@@ -20,6 +20,7 @@
           mode = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
         }
         el.setAttribute("data-mode", mode);
+        el.setAttribute("data-anim", localStorage.getItem("poke:anim") || "on");
       } catch (e) {}
     })();
   </script>
@@ -115,6 +116,14 @@
       <h3>Paleta de cores</h3>
       <p class="muted small">A cor de acento da Pokédex. Combina com qualquer modo.</p>
       <div id="palette-grid" class="palette-grid"></div>
+
+      <h3>Animações</h3>
+      <p class="muted small">Reduza os efeitos de movimento se preferir uma interface mais estável.</p>
+      <div id="anim-grid" class="mode-grid"></div>
+
+      <div class="settings-footer">
+        <button id="settings-reset" class="btn-ghost">↺ Restaurar padrões</button>
+      </div>
     </div>
   </div>
 
@@ -137,6 +146,7 @@
   <script src="js/types.js"></script>
   <script src="js/items.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/abilities.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/pokedex.js"></script>
   <script src="js/team.js"></script>

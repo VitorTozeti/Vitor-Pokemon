@@ -158,13 +158,31 @@ window.Team = (function () {
     } catch { /* sem mega forms disponíveis / falha de rede: fica sem a opção */ }
   }
 
+  // pedra de mega correspondente a uma variedade mega (ex.: "charizard-mega-x" -> "charizardite-x")
+  function stoneForMega(varietyName) {
+    const s = window.MEGA_STONES && window.MEGA_STONES[varietyName];
+    return s ? s.id : null;
+  }
+
   async function selectMega(m, varietyName) {
     const b = m.build;
+    const prevMega = b.mega;
     b.mega = varietyName || null;
+
+    // integração item <-> mega pedra: ao escolher uma mega, já segura a pedra certa; ao tirar
+    // a mega, se o item era uma mega pedra, esvazia o item.
+    if (b.mega) {
+      const stone = stoneForMega(b.mega);
+      if (stone) b.item = stone;
+    } else {
+      const prevStone = prevMega && stoneForMega(prevMega);
+      if (prevStone && b.item === prevStone) b.item = "";
+    }
+
     save(); renderEditor(); render(); renderAnalysis();
     if (!b.mega) return;
     if (!m.megaData) m.megaData = {};
-    if (m.megaData[b.mega]) { renderEditor(); render(); renderAnalysis(); return; }
+    if (m.megaData[b.mega]) { applyMegaAbility(m); renderEditor(); render(); renderAnalysis(); return; }
     try {
       toast("Carregando mega evolução…");
       const mp = await window.API.getPokemon(b.mega);
@@ -172,13 +190,30 @@ window.Team = (function () {
         id: mp.id,
         types: mp.types.map(t => t.type.name),
         base: Object.fromEntries(mp.stats.map(s => [s.stat.name, s.base_stat])),
+        // mega evoluções costumam ter uma habilidade fixa própria (ex.: Charizard X -> Dura Garra)
+        abilities: mp.abilities.map(a => ({ name: a.ability.name, hidden: a.is_hidden })),
       };
       save();
-      if (m.build.mega === b.mega) { renderEditor(); render(); renderAnalysis(); }
+      if (m.build.mega === b.mega) { applyMegaAbility(m); renderEditor(); render(); renderAnalysis(); }
     } catch {
       toast("Erro ao carregar a mega evolução.");
       if (m.build.mega === varietyName) { m.build.mega = null; save(); renderEditor(); render(); renderAnalysis(); }
     }
+  }
+
+  // quando uma mega tem habilidade própria, adota-a automaticamente no build (a mega evolução
+  // sempre muda a habilidade para a da forma mega).
+  function applyMegaAbility(m) {
+    const data = m.build.mega && m.megaData && m.megaData[m.build.mega];
+    if (!data || !data.abilities || !data.abilities.length) return;
+    m.build.ability = data.abilities[0].name;
+  }
+
+  // habilidades disponíveis no editor: as da forma mega (se ativa) ou as da forma normal.
+  function abilitiesOf(m) {
+    const data = m.build && m.build.mega && m.megaData && m.megaData[m.build.mega];
+    if (data && data.abilities && data.abilities.length) return data.abilities;
+    return m.abilities;
   }
 
   // forma "ativa" de um membro: a mega escolhida (se já carregada) ou a forma normal —
@@ -664,8 +699,9 @@ window.Team = (function () {
     ensureMegaForms(m);
     const form = activeForm(m);
 
-    const abilityOpts = m.abilities.map(a =>
-      `<option value="${a.name}"${a.name === b.ability ? " selected" : ""}>${cap(a.name)}${a.hidden ? " (oculta)" : ""}</option>`).join("");
+    const abilityList = abilitiesOf(m);
+    const abilityOpts = abilityList.map(a =>
+      `<option value="${a.name}"${a.name === b.ability ? " selected" : ""}>${cap((window.abilityLabel ? window.abilityLabel(a.name) : a.name))}${a.hidden ? " (oculta)" : ""}</option>`).join("");
     const natureOpts = window.NATURES.map(nat =>
       `<option value="${nat.id}"${nat.id === b.nature ? " selected" : ""}>${window.natureLabel(nat.id)}</option>`).join("");
     const megaOpts = (m.megaForms || []).length ? `
@@ -699,8 +735,9 @@ window.Team = (function () {
       </div>
 
       <div class="editor-grid">
-        <label class="fld">Habilidade
+        <label class="fld fld-ability">Habilidade
           <select id="f-ability">${abilityOpts}</select>
+          <p class="ability-effect small" id="f-ability-effect" data-for="${b.ability}">Carregando efeito…</p>
         </label>
         <label class="fld">Nature
           <select id="f-nature">${natureOpts}</select>
@@ -711,8 +748,9 @@ window.Team = (function () {
         <div class="fld">Item (opcional)
           ${itemPickerHTML(m)}
         </div>
-        ${megaOpts ? `<label class="fld">💎 Mega pedra (mega evolução)
+        ${megaOpts ? `<label class="fld fld-mega">💎 Mega evolução
           <select id="f-mega">${megaOpts}</select>
+          ${megaStoneHintHTML(m)}
         </label>` : ""}
       </div>
 
@@ -727,6 +765,33 @@ window.Team = (function () {
       ${evTotal > EV_TOTAL ? `<p class="error small">Total de EVs acima de ${EV_TOTAL}. Reduza para um build válido.</p>` : ""}
     `;
     wireEditor(m);
+    fillEditorAbilityEffect(m);
+  }
+
+  // linha com o sprite + nome da mega pedra que a mega selecionada exige (segurada no item).
+  function megaStoneHintHTML(m) {
+    const stone = m.build.mega && stoneForMega(m.build.mega);
+    if (!stone) return `<span class="mega-stone-hint muted small">Escolha uma mega — a pedra correspondente é segurada automaticamente.</span>`;
+    const it = window.ITEM_BY_ID[stone];
+    return `<span class="mega-stone-hint">
+      <img src="${window.itemSprite(stone)}" alt="" onerror="this.style.display='none'">
+      <span>Segurando <b>${it ? escapeHtml(it.pt.replace(/ \(Mega Pedra\)$/, "")) : stone}</b></span>
+    </span>`;
+  }
+
+  // preenche (async) o efeito da habilidade selecionada no editor (dicionário curado + API).
+  async function fillEditorAbilityEffect(m) {
+    const el = $("#f-ability-effect");
+    if (!el) return;
+    const want = m.build.ability;
+    if (!want) { el.textContent = "Sem habilidade."; el.classList.add("muted"); return; }
+    try {
+      const info = await window.abilityInfo(want);
+      const cur = $("#f-ability-effect");
+      if (!cur || cur.dataset.for !== want) return; // trocou de habilidade/membro
+      cur.textContent = info.effect || "Sem descrição disponível.";
+      cur.classList.toggle("muted", !info.effect);
+    } catch {}
   }
 
   function catPT(c) { return c === "physical" ? "Físico" : c === "special" ? "Especial" : "Status"; }
@@ -947,9 +1012,12 @@ window.Team = (function () {
       </div>`;
   }
 
-  function filteredItems() {
+  function filteredItems(m) {
     const q = normSearch(itemPick.q);
+    // só mostra as mega pedras que ESTE Pokémon pode usar (pelas megaForms detectadas)
+    const myMegas = new Set((m && m.megaForms || []).map(mf => mf.name));
     return (window.ITEMS || []).filter(it => {
+      if (it.cat === "mega" && !myMegas.has(it.megaFor)) return false;
       if (itemPick.cat && it.cat !== itemPick.cat) return false;
       if (q && !normSearch(it.pt).includes(q) && !normSearch(it.id).includes(q)) return false;
       return true;
@@ -959,7 +1027,7 @@ window.Team = (function () {
   function renderItemList(m) {
     const wrap = document.getElementById("item-list");
     if (!wrap) return;
-    const rows = filteredItems();
+    const rows = filteredItems(m);
     wrap.innerHTML = rows.length
       ? rows.map(it => `
         <div class="ip-row${m.build.item === it.id ? " selected" : ""}" data-pick-item="${it.id}">
@@ -973,8 +1041,15 @@ window.Team = (function () {
     wrap.onclick = (e) => {
       const row = e.target.closest("[data-pick-item]");
       if (!row) return;
-      m.build.item = row.dataset.pickItem;
+      const picked = row.dataset.pickItem;
+      m.build.item = picked;
       openItem = false;
+      // se o item é uma mega pedra, ativa a mega correspondente (quando o Pokémon a tem)
+      const megaVariety = window.STONE_TO_MEGA && window.STONE_TO_MEGA[picked];
+      if (megaVariety && (m.megaForms || []).some(mf => mf.name === megaVariety)) {
+        selectMega(m, megaVariety); // já salva/re-renderiza e mantém a pedra
+        return;
+      }
       save(); renderEditor(); render(); renderAnalysis();
     };
   }
@@ -1009,7 +1084,12 @@ window.Team = (function () {
     wireItemPicker(m);
     const autoBtn = box.querySelector("#auto-fill-moves");
     if (autoBtn) autoBtn.onclick = () => autoFillMoves(m);
-    box.querySelector("#f-ability").onchange = (e) => { b.ability = e.target.value; save(); };
+    box.querySelector("#f-ability").onchange = (e) => {
+      b.ability = e.target.value; save();
+      const eff = $("#f-ability-effect");
+      if (eff) { eff.dataset.for = b.ability; eff.textContent = "Carregando efeito…"; eff.classList.remove("muted"); }
+      fillEditorAbilityEffect(m);
+    };
     const megaSel = box.querySelector("#f-mega");
     if (megaSel) megaSel.onchange = (e) => selectMega(m, e.target.value || null);
     box.querySelector("#f-nature").onchange = (e) => { b.nature = e.target.value; save(); renderEditor(); renderAnalysis(); };

@@ -101,9 +101,16 @@ window.Pokedex = (function () {
         </div>
         ${formsHtml}
         ${evoHtml}
-        <h3>Habilidades</h3>
+        <h3>Habilidades <span class="muted small">— o que cada uma faz</span></h3>
         <ul class="abilities">
-          ${p.abilities.map(a => `<li>${cap(a.ability.name.replace(/-/g, " "))}${a.is_hidden ? " <em>(oculta)</em>" : ""}</li>`).join("")}
+          ${p.abilities.map(a => `
+            <li class="ability-card" data-ability="${a.ability.name}">
+              <div class="ability-head">
+                <span class="ability-name">${cap(a.ability.name.replace(/-/g, " "))}</span>
+                ${a.is_hidden ? `<span class="ability-tag">oculta</span>` : ""}
+              </div>
+              <p class="ability-effect" data-ability-effect="${a.ability.name}">Carregando efeito…</p>
+            </li>`).join("")}
         </ul>
         <h3>Status base <span class="muted">(total ${total})</span></h3>
         <div class="stats">
@@ -139,8 +146,28 @@ window.Pokedex = (function () {
         <div id="mv-table" class="mv-table-wrap"></div>`;
 
       renderMovesPanel(p);
+      fillAbilityEffects(p, modal);
     } catch (e) {
       body.innerHTML = `<p class="error">Não consegui carregar: ${e.message}</p>`;
+    }
+  }
+
+  // preenche (async) o efeito de cada habilidade na ficha, usando o dicionário curado +
+  // fallback à PokéAPI (ver abilities.js). Só escreve se a ficha ainda for a mesma.
+  async function fillAbilityEffects(p, modal) {
+    const token = p.name;
+    for (const a of p.abilities) {
+      try {
+        const info = await window.abilityInfo(a.ability.name);
+        if ($("#modal").hidden || !modal.querySelector(`[data-ability-effect="${a.ability.name}"]`)) continue;
+        const el = modal.querySelector(`[data-ability-effect="${a.ability.name}"]`);
+        if (!el) continue;
+        // atualiza também o nome pro PT curado, se houver
+        const nameEl = el.closest(".ability-card")?.querySelector(".ability-name");
+        if (nameEl && info.pt) nameEl.textContent = info.pt;
+        el.textContent = info.effect || "Sem descrição disponível.";
+        if (!info.effect) el.classList.add("muted");
+      } catch {}
     }
   }
 
