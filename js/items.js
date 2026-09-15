@@ -125,6 +125,74 @@ window.MEGA_STONES = {
   "diancie-mega":       { id: "diancite",       pt: "Diancita" },
 };
 
+/* ---- MEGA EVOLUÇÕES CUSTOMIZADAS (fan-made) ------------------------------------
+ * A PokéAPI só tem as megas oficiais (Gen 6/7). Pra atender o pedido de "mega evoluções
+ * novas" (ex.: Mega Raichu), embutimos aqui megas NÃO-oficiais: como não existem na API,
+ * trazemos os dados prontos (tipos, status base, habilidade da forma mega e o sprite base
+ * do próprio Pokémon). O editor de time reconhece essas variedades e usa estes dados em vez
+ * de chamar a API. Cada uma também vira uma mega pedra no catálogo, igual às oficiais.
+ *
+ * Chave = nome da "variedade" fictícia (padrão "<especie>-mega"). Campos:
+ *   base   : slug da espécie base
+ *   baseId : id na PokéAPI (só p/ reaproveitar o sprite oficial da forma base)
+ *   types  : tipos da forma mega
+ *   stats  : status base { hp, attack, defense, special-attack, special-defense, speed }
+ *   ability: slug da habilidade que a mega adota (descrita via abilities.js/PokéAPI)
+ *   stone  : { id, pt } da mega pedra (id vira o slug do sprite — pode não existir no repo)
+ */
+window.CUSTOM_MEGAS = {
+  "flygon-mega": {
+    base: "flygon", baseId: 330, types: ["ground", "dragon"], ability: "levitate",
+    stats: { hp: 80, attack: 130, defense: 90, "special-attack": 100, "special-defense": 90, speed: 130 },
+    stone: { id: "flygonite", pt: "Flygonita" },
+  },
+  "milotic-mega": {
+    base: "milotic", baseId: 350, types: ["water"], ability: "competitive",
+    stats: { hp: 95, attack: 60, defense: 99, "special-attack": 120, "special-defense": 145, speed: 101 },
+    stone: { id: "miloticite", pt: "Miloticita" },
+  },
+  "arcanine-mega": {
+    base: "arcanine", baseId: 59, types: ["fire"], ability: "intimidate",
+    stats: { hp: 90, attack: 130, defense: 90, "special-attack": 120, "special-defense": 90, speed: 115 },
+    stone: { id: "arcaninite", pt: "Arcaninita" },
+  },
+  "crobat-mega": {
+    base: "crobat", baseId: 169, types: ["poison", "flying"], ability: "infiltrator",
+    stats: { hp: 85, attack: 100, defense: 90, "special-attack": 80, "special-defense": 90, speed: 160 },
+    stone: { id: "crobatite", pt: "Crobatita" },
+  },
+  "luxray-mega": {
+    base: "luxray", baseId: 405, types: ["electric", "dark"], ability: "guts",
+    stats: { hp: 80, attack: 140, defense: 89, "special-attack": 95, "special-defense": 79, speed: 100 },
+    stone: { id: "luxrayite", pt: "Luxrayita" },
+  },
+  "zoroark-mega": {
+    base: "zoroark", baseId: 571, types: ["dark"], ability: "illusion",
+    stats: { hp: 60, attack: 145, defense: 70, "special-attack": 140, "special-defense": 70, speed: 135 },
+    stone: { id: "zoroarkite", pt: "Zoroarkita" },
+  },
+  "hydreigon-mega": {
+    base: "hydreigon", baseId: 635, types: ["dark", "dragon"], ability: "levitate",
+    stats: { hp: 92, attack: 125, defense: 100, "special-attack": 155, "special-defense": 100, speed: 128 },
+    stone: { id: "hydreigonite", pt: "Hydreigonita" },
+  },
+  "togekiss-mega": {
+    base: "togekiss", baseId: 468, types: ["fairy", "flying"], ability: "serene-grace",
+    stats: { hp: 85, attack: 60, defense: 95, "special-attack": 150, "special-defense": 135, speed: 100 },
+    stone: { id: "togekissite", pt: "Togekissita" },
+  },
+  "weavile-mega": {
+    base: "weavile", baseId: 461, types: ["dark", "ice"], ability: "tough-claws",
+    stats: { hp: 70, attack: 140, defense: 75, "special-attack": 55, "special-defense": 95, speed: 155 },
+    stone: { id: "weavilite", pt: "Weavilita" },
+  },
+};
+
+// registra as pedras das megas customizadas no mesmo mapa das oficiais (ganham item + sprite)
+Object.entries(window.CUSTOM_MEGAS).forEach(([variety, cm]) => {
+  window.MEGA_STONES[variety] = { id: cm.stone.id, pt: cm.stone.pt };
+});
+
 // slug da pedra -> nome da variedade mega (índice reverso, p/ ir da pedra pra mega)
 window.STONE_TO_MEGA = Object.fromEntries(
   Object.entries(window.MEGA_STONES).map(([mega, s]) => [s.id, mega])

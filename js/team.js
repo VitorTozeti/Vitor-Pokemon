@@ -151,11 +151,28 @@ window.Team = (function () {
         id: window.API.idFromUrl(v.pokemon.url),
         label: megaFormLabel(v.pokemon.name, species.name),
       }));
+      // + megas customizadas (fan-made) desta espécie (não existem na PokéAPI)
+      appendCustomMegas(m, species.name);
       save();
       // só re-renderiza se este membro ainda estiver visível (evita "pulos" de UI)
       const stillThere = activeTeam().members.includes(m);
       if (stillThere) { render(); }
     } catch { /* sem mega forms disponíveis / falha de rede: fica sem a opção */ }
+  }
+
+  // acrescenta em m.megaForms as megas customizadas (fan-made) cuja espécie base bate.
+  function appendCustomMegas(m, speciesName) {
+    const cm = window.CUSTOM_MEGAS || {};
+    Object.entries(cm).forEach(([variety, data]) => {
+      if (data.base !== speciesName) return;
+      if (m.megaForms.some(mf => mf.name === variety)) return; // evita duplicar
+      m.megaForms.push({
+        name: variety,
+        id: data.baseId, // sem sprite próprio: reaproveita o sprite da forma base
+        label: megaFormLabel(variety, speciesName) + " ✨", // ✨ marca que é customizada
+        custom: true,
+      });
+    });
   }
 
   // pedra de mega correspondente a uma variedade mega (ex.: "charizard-mega-x" -> "charizardite-x")
@@ -183,6 +200,21 @@ window.Team = (function () {
     if (!b.mega) return;
     if (!m.megaData) m.megaData = {};
     if (m.megaData[b.mega]) { applyMegaAbility(m); renderEditor(); render(); renderAnalysis(); return; }
+
+    // mega customizada (fan-made): dados já embutidos em items.js, sem chamar a PokéAPI.
+    const custom = window.CUSTOM_MEGAS && window.CUSTOM_MEGAS[b.mega];
+    if (custom) {
+      m.megaData[b.mega] = {
+        id: custom.baseId, // reaproveita o sprite/nº da forma base
+        types: custom.types.slice(),
+        base: { ...custom.stats },
+        abilities: [{ name: custom.ability, hidden: false }],
+      };
+      save();
+      if (m.build.mega === b.mega) { applyMegaAbility(m); renderEditor(); render(); renderAnalysis(); }
+      return;
+    }
+
     try {
       toast("Carregando mega evolução…");
       const mp = await window.API.getPokemon(b.mega);
