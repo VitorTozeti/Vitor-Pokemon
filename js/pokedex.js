@@ -42,6 +42,8 @@ window.Pokedex = (function () {
     const dir = $("#sort-dir").value;
     const countEl = $("#count");
     countEl.classList.remove("error");
+    countEl.classList.add("loading");
+    renderChips();
 
     let abilitySet = null, moveSet = null;
     try {
@@ -52,7 +54,7 @@ window.Pokedex = (function () {
         .catch(() => { throw new Error(`golpe "${move}" não encontrado`); });
     } catch (e) {
       if (run !== filterRun) return;
-      countEl.textContent = `⚠ ${e.message}`; countEl.classList.add("error");
+      countEl.textContent = `⚠ ${e.message}`; countEl.classList.add("error"); countEl.classList.remove("loading");
       filtered = []; shown = 0; $("#grid").innerHTML = ""; $("#load-more").hidden = true;
       return;
     }
@@ -90,8 +92,38 @@ window.Pokedex = (function () {
 
     shown = 0;
     $("#grid").innerHTML = "";
+    countEl.classList.remove("loading");
     countEl.textContent = `${filtered.length} Pokémon`;
     renderMore();
+  }
+
+  // Chips dos filtros ativos (clicar remove) + destaque nos campos preenchidos.
+  const FIELDS = [
+    ["#search", "Busca"], ["#filter-type", "Tipo"], ["#filter-gen", "Geração"],
+    ["#filter-ability", "Habilidade"], ["#filter-move", "Golpe"], ["#sort-stat", "Ordem"],
+  ];
+  function renderChips() {
+    const chips = [];
+    for (const [sel, label] of FIELDS) {
+      const el = $(sel);
+      const set = !!el.value.trim();
+      el.classList.toggle("is-set", set && sel !== "#search");
+      if (!set) continue;
+      let txt = el.tagName === "SELECT" ? el.selectedOptions[0].textContent : el.value.trim();
+      if (sel === "#sort-stat") txt += $("#sort-dir").value === "asc" ? " ↑ menor" : " ↓ maior";
+      chips.push(`<button type="button" class="chip" data-clear="${sel}" title="Remover filtro">
+        <b>${label}:</b> ${txt} <span class="x">✕</span></button>`);
+    }
+    $(".seg").classList.toggle("disabled", !$("#sort-stat").value);
+    const box = $("#active-chips");
+    box.hidden = !chips.length;
+    box.innerHTML = chips.join("") +
+      (chips.length > 1 ? `<button type="button" class="chip-clear" data-clear="all">Limpar tudo</button>` : "");
+  }
+  function clearFilter(sel) {
+    const sels = sel === "all" ? FIELDS.map(f => f[0]) : [sel];
+    sels.forEach(x => { $(x).value = ""; });
+    applyFilters();
   }
 
   function card(p) {
@@ -424,13 +456,21 @@ window.Pokedex = (function () {
     $("#filter-ability").addEventListener("change", applyFilters);
     $("#filter-move").addEventListener("change", applyFilters);
     $("#sort-stat").addEventListener("change", applyFilters);
-    $("#sort-dir").addEventListener("change", applyFilters);
-    $("#filter-clear").addEventListener("click", () => {
-      ["#search", "#filter-type", "#filter-gen", "#filter-ability", "#filter-move", "#sort-stat"]
-        .forEach(s => { $(s).value = ""; });
-      $("#sort-dir").value = "desc";
+    $(".seg").addEventListener("click", (e) => {
+      const btn = e.target.closest(".seg-btn");
+      if (!btn) return;
+      document.querySelectorAll(".seg-btn").forEach(x => x.classList.toggle("active", x === btn));
+      $("#sort-dir").value = btn.dataset.dir;
       applyFilters();
     });
+    $("#active-chips").addEventListener("click", (e) => {
+      const c = e.target.closest("[data-clear]");
+      if (c) clearFilter(c.dataset.clear);
+    });
+    // Enter nos campos de texto aplica na hora (sem esperar sair do campo)
+    ["#filter-ability", "#filter-move"].forEach(sel => $(sel).addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); applyFilters(); }
+    }));
     // autocompletar habilidades (com nome PT curado) e golpes — em segundo plano
     window.API.getAbilityNames().then(names => {
       $("#dl-abilities").innerHTML = names.map(n => {

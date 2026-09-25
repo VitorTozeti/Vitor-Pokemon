@@ -49,23 +49,40 @@
   <main>
     <!-- ===== Pokédex ===== -->
     <section id="view-dex" class="view active">
-      <div class="filters">
-        <input id="search" type="search" placeholder="Buscar por nome ou número…" autocomplete="off">
-        <select id="filter-type"><option value="">Todos os tipos</option></select>
-        <select id="filter-gen"><option value="">Todas as gerações</option></select>
-        <input id="filter-ability" class="filter-sm" list="dl-abilities" placeholder="Habilidade (ex.: levitate)" autocomplete="off">
-        <input id="filter-move" class="filter-sm" list="dl-moves" placeholder="Golpe (ex.: false swipe)" autocomplete="off">
-        <select id="sort-stat" title="Ordenar por status base">
-          <option value="">Ordenar: nº da Pokédex</option>
-          <option value="6">Total de status</option>
-          <option value="0">HP</option><option value="1">Ataque</option><option value="2">Defesa</option>
-          <option value="3">Atq. Esp.</option><option value="4">Def. Esp.</option><option value="5">Velocidade</option>
-        </select>
-        <select id="sort-dir" title="Maior ou menor primeiro">
-          <option value="desc">Maior → menor</option><option value="asc">Menor → maior</option>
-        </select>
-        <button id="filter-clear" class="btn-ghost" type="button">Limpar</button>
-        <span id="count" class="count"></span>
+      <div class="filters-panel">
+        <div class="filters-top">
+          <label class="search-box">
+            <span class="fi-icon" aria-hidden="true">🔍</span>
+            <input id="search" type="search" placeholder="Buscar por nome ou número…" autocomplete="off">
+          </label>
+          <span id="count" class="count" aria-live="polite"></span>
+        </div>
+        <div class="filters-grid">
+          <label class="field"><span class="field-label">Tipo</span>
+            <select id="filter-type"><option value="">Todos</option></select></label>
+          <label class="field"><span class="field-label">Geração</span>
+            <select id="filter-gen"><option value="">Todas</option></select></label>
+          <label class="field"><span class="field-label">Habilidade</span>
+            <input id="filter-ability" list="dl-abilities" placeholder="ex.: levitate" autocomplete="off"></label>
+          <label class="field"><span class="field-label">Golpe</span>
+            <input id="filter-move" list="dl-moves" placeholder="ex.: false swipe" autocomplete="off"></label>
+          <div class="field field-sort"><span class="field-label">Ordenar por status</span>
+            <div class="sort-row">
+              <select id="sort-stat" aria-label="Status para ordenar">
+                <option value="">Nº da Pokédex</option>
+                <option value="6">Total</option>
+                <option value="0">HP</option><option value="1">Ataque</option><option value="2">Defesa</option>
+                <option value="3">Atq. Esp.</option><option value="4">Def. Esp.</option><option value="5">Velocidade</option>
+              </select>
+              <div class="seg disabled" role="group" aria-label="Direção">
+                <button type="button" class="seg-btn active" data-dir="desc" title="Maior primeiro">↓ Maior</button>
+                <button type="button" class="seg-btn" data-dir="asc" title="Menor primeiro">↑ Menor</button>
+              </div>
+              <input id="sort-dir" type="hidden" value="desc">
+            </div>
+          </div>
+        </div>
+        <div id="active-chips" class="active-chips" hidden></div>
         <datalist id="dl-abilities"></datalist><datalist id="dl-moves"></datalist>
       </div>
       <div id="grid" class="grid"></div>

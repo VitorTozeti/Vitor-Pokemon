@@ -193,9 +193,56 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .filters input{flex:1; min-width:220px}
 .filters input:focus,.filters select:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
 .count{color:var(--muted); font-size:13px; margin-left:auto}
-.filters input.filter-sm{flex:0 1 190px; min-width:150px}
 .card-stat{font-size:12px; font-weight:700; color:var(--accent); background:var(--panel-2); border:1px solid var(--line); padding:1px 8px; border-radius:999px}
 .count.error{color:#DC2626}
+/* ---- painel de filtros da Pokédex ---- */
+.filters-panel{
+  background:linear-gradient(160deg,var(--panel),var(--panel-2)); border:1px solid var(--line);
+  border-radius:var(--radius); padding:16px; margin-bottom:18px; display:flex; flex-direction:column; gap:14px;
+}
+.filters-top{display:flex; align-items:center; gap:14px}
+.search-box{flex:1; position:relative; display:flex; align-items:center}
+.search-box .fi-icon{position:absolute; left:13px; font-size:14px; opacity:.6; pointer-events:none}
+.filters-panel input,.filters-panel select{
+  width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--line);
+  padding:10px 12px; border-radius:var(--radius-sm); font-size:14px; font-family:inherit; height:42px;
+  transition:border-color .15s, box-shadow .15s;
+}
+.search-box input{padding:0 14px 0 38px; font-size:15px; height:46px}
+.filters-panel input:focus,.filters-panel select:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
+.filters-panel .is-set{border-color:var(--accent-line); box-shadow:inset 3px 0 0 var(--accent)}
+.filters-grid{display:grid; gap:12px; grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr)}
+.field{display:flex; flex-direction:column; gap:6px; min-width:0}
+.field-label{font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+.sort-row{display:flex; gap:8px}
+.sort-row select{flex:1; min-width:0}
+.seg{display:flex; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; flex-shrink:0; height:42px}
+.seg-btn{background:transparent; color:var(--muted); border:0; padding:0 12px; font-size:13px; font-weight:600;
+  cursor:pointer; white-space:nowrap; transition:background .15s,color .15s}
+.seg-btn + .seg-btn{border-left:1px solid var(--line)}
+.seg-btn:hover{color:var(--text)}
+.seg-btn.active{background:var(--accent); color:#fff}
+.seg.disabled{opacity:.4; pointer-events:none}
+.count{white-space:nowrap; font-weight:600}
+.count.loading::before{content:""; display:inline-block; width:11px; height:11px; margin-right:7px; vertical-align:-1px;
+  border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:fspin .7s linear infinite}
+@keyframes fspin{to{transform:rotate(360deg)}}
+.active-chips{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding-top:12px; border-top:1px dashed var(--line)}
+.active-chips[hidden]{display:none}
+.chip{display:inline-flex; align-items:center; gap:6px; background:var(--panel-2); border:1px solid var(--accent-line);
+  color:var(--text); padding:5px 6px 5px 11px; border-radius:999px; font-size:13px; cursor:pointer; font-family:inherit}
+.chip b{color:var(--muted); font-weight:600}
+.chip .x{display:grid; place-items:center; width:18px; height:18px; border-radius:50%; background:var(--line); font-size:10px}
+.chip:hover .x{background:var(--accent); color:#fff}
+.chip-clear{background:none; border:0; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; margin-left:auto; font-family:inherit}
+.chip-clear:hover{text-decoration:underline}
+@media (max-width:1000px){ .filters-grid{grid-template-columns:repeat(2,minmax(0,1fr))} .field-sort{grid-column:1/-1} }
+@media (max-width:560px){
+  .filters-panel{padding:12px}
+  .filters-top{flex-direction:column; align-items:stretch; gap:8px}
+  .count{text-align:right}
+  .filters-grid{gap:10px}
+}
 
 /* ---- grid de cards ---- */
 .grid{
