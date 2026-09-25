@@ -175,11 +175,84 @@ window.API = (function () {
     return out;
   }
 
+
+  // ---- filtros avançados da Pokédex: habilidade, golpe e ranking por status ----
+  // Lista de nomes (para autocompletar): 1 request cada, cacheado.
+  async function getAbilityNames() {
+    const d = await fetchJSON(`${BASE}/ability?limit=2000`, "abilityNames");
+    return d.results.map(r => r.name);
+  }
+  async function getMoveNames() {
+    const d = await fetchJSON(`${BASE}/move?limit=3000`, "moveNames");
+    return d.results.map(r => r.name);
+  }
+  // Nomes de Pokémon que TÊM a habilidade (normal ou oculta).
+  async function pokemonWithAbility(name) {
+    const d = await getAbility(name);
+    return new Set(d.pokemon.map(x => x.pokemon.name));
+  }
+  // Nomes de Pokémon que APRENDEM o golpe (lista enxuta cacheada em `movelearn:`).
+  async function pokemonWithMove(name) {
+    const key = `movelearn:${name}`;
+    let names = cacheGet(key);
+    if (!names) {
+      const res = await fetch(`${BASE}/move/${name}`);
+      if (!res.ok) throw new Error(`golpe "${name}" não encontrado`);
+      const d = await res.json();
+      names = d.learned_by_pokemon.map(x => x.name);
+      cacheSet(key, names);
+    }
+    return new Set(names);
+  }
+
+  /* Índice de status base { nome: [hp, atk, def, spa, spd, spe] } de TODOS os Pokémon.
+   * Tenta 1 query na GraphQL da PokéAPI; se falhar, busca /pokemon/{id} em lotes (só guarda
+   * os 6 números, não o JSON inteiro). Cacheado em `statsIndex`. */
+  const STAT_ORDER = ["hp", "attack", "defense", "special-attack", "special-defense", "speed"];
+  let statsIndex = null;
+  async function getStatsIndex(list, onProgress) {
+    if (statsIndex) return statsIndex;
+    const cached = cacheGet("statsIndex");
+    if (cached && Object.keys(cached).length >= list.length * 0.95) return (statsIndex = cached);
+    const idx = {};
+    try {
+      const res = await fetch("https://beta.pokeapi.co/graphql/v1beta", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: `{ p: pokemon_v2_pokemon(where:{id:{_lte:1025}}) {
+          name s: pokemon_v2_pokemonstats { base_stat t: pokemon_v2_stat { name } } } }` }),
+      });
+      const j = await res.json();
+      for (const p of j.data.p) {
+        const m = Object.fromEntries(p.s.map(x => [x.t.name, x.base_stat]));
+        idx[p.name] = STAT_ORDER.map(k => m[k] || 0);
+      }
+    } catch { /* cai para o modo lento abaixo */ }
+    const missing = list.filter(p => !idx[p.name]);
+    let done = list.length - missing.length;
+    const queue = missing.slice();
+    async function worker() {
+      while (queue.length) {
+        const p = queue.shift();
+        try {
+          const r = await fetch(`${BASE}/pokemon/${p.id}`);
+          const d = await r.json();
+          const m = Object.fromEntries(d.stats.map(x => [x.stat.name, x.base_stat]));
+          idx[p.name] = STAT_ORDER.map(k => m[k] || 0);
+        } catch {}
+        done++;
+        if (onProgress) onProgress(done, list.length);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(10, missing.length) }, worker));
+    cacheSet("statsIndex", idx);
+    return (statsIndex = idx);
+  }
+
   function clearCache() {
     Object.keys(localStorage)
       .filter(k => k.startsWith(CACHE_PREFIX))
       .forEach(k => localStorage.removeItem(k));
-    listCache = null; typeIndex = null;
+    listCache = null; typeIndex = null; statsIndex = null;
   }
 
   return {
@@ -187,6 +260,7 @@ window.API = (function () {
     buildTypeIndex, getList, typesOf,
     getPokemon, getSpecies, getEvolutionChain, getAbility,
     getMove, normalizeMoves, enrichMoves,
+    getAbilityNames, getMoveNames, pokemonWithAbility, pokemonWithMove, getStatsIndex,
     clearCache,
   };
 })();

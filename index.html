@@ -53,7 +53,20 @@
         <input id="search" type="search" placeholder="Buscar por nome ou número…" autocomplete="off">
         <select id="filter-type"><option value="">Todos os tipos</option></select>
         <select id="filter-gen"><option value="">Todas as gerações</option></select>
+        <input id="filter-ability" class="filter-sm" list="dl-abilities" placeholder="Habilidade (ex.: levitate)" autocomplete="off">
+        <input id="filter-move" class="filter-sm" list="dl-moves" placeholder="Golpe (ex.: false swipe)" autocomplete="off">
+        <select id="sort-stat" title="Ordenar por status base">
+          <option value="">Ordenar: nº da Pokédex</option>
+          <option value="6">Total de status</option>
+          <option value="0">HP</option><option value="1">Ataque</option><option value="2">Defesa</option>
+          <option value="3">Atq. Esp.</option><option value="4">Def. Esp.</option><option value="5">Velocidade</option>
+        </select>
+        <select id="sort-dir" title="Maior ou menor primeiro">
+          <option value="desc">Maior → menor</option><option value="asc">Menor → maior</option>
+        </select>
+        <button id="filter-clear" class="btn-ghost" type="button">Limpar</button>
         <span id="count" class="count"></span>
+        <datalist id="dl-abilities"></datalist><datalist id="dl-moves"></datalist>
       </div>
       <div id="grid" class="grid"></div>
       <button id="load-more" class="btn-primary load-more" hidden>Carregar mais</button>

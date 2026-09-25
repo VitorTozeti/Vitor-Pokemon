@@ -17,10 +17,47 @@ window.Pokedex = (function () {
   }
 
   // ---- filtros ----
-  function applyFilters() {
+  // "False Swipe" / "false swipe" / "Levitação" (PT curado) -> slug da PokéAPI.
+  const toSlug = (s) => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s_]+/g, "-");
+  function abilitySlug(txt) {
+    const slug = toSlug(txt);
+    if (!slug) return "";
+    const pt = Object.entries(window.ABILITY_PT || {})
+      .find(([, v]) => toSlug(v.pt) === slug);
+    return pt ? pt[0] : slug;
+  }
+  const STAT_LABEL = ["HP", "Atq", "Def", "AtE", "DfE", "Vel", "Total"];
+  let sortInfo = null;     // {k, idx} quando ordenando por status
+  let filterRun = 0;       // descarta resultados de filtros antigos (async)
+
+  async function applyFilters() {
+    const run = ++filterRun;
     const q = $("#search").value.trim().toLowerCase();
     const type = $("#filter-type").value;
     const gen = $("#filter-gen").value;
+    const ability = abilitySlug($("#filter-ability").value);
+    const move = toSlug($("#filter-move").value);
+    const statK = $("#sort-stat").value;
+    const dir = $("#sort-dir").value;
+    const countEl = $("#count");
+    countEl.classList.remove("error");
+
+    let abilitySet = null, moveSet = null;
+    try {
+      if (ability || move) countEl.textContent = "Filtrando…";
+      if (ability) abilitySet = await window.API.pokemonWithAbility(ability)
+        .catch(() => { throw new Error(`habilidade "${ability}" não encontrada`); });
+      if (move) moveSet = await window.API.pokemonWithMove(move)
+        .catch(() => { throw new Error(`golpe "${move}" não encontrado`); });
+    } catch (e) {
+      if (run !== filterRun) return;
+      countEl.textContent = `⚠ ${e.message}`; countEl.classList.add("error");
+      filtered = []; shown = 0; $("#grid").innerHTML = ""; $("#load-more").hidden = true;
+      return;
+    }
+    if (run !== filterRun) return;
+
     filtered = all.filter(p => {
       if (q && !p.name.includes(q) && !String(p.id).includes(q)) return false;
       if (type && !window.API.typesOf(p.name).includes(type)) return false;
@@ -28,11 +65,32 @@ window.Pokedex = (function () {
         const g = window.GENERATIONS.find(x => String(x.id) === gen);
         if (g && (p.id < g.min || p.id > g.max)) return false;
       }
+      if (abilitySet && !abilitySet.has(p.name)) return false;
+      if (moveSet && !moveSet.has(p.name)) return false;
       return true;
     });
+
+    sortInfo = null;
+    if (statK !== "") {
+      countEl.textContent = "Carregando status…";
+      const idx = await window.API.getStatsIndex(all, (d, t) => {
+        if (run === filterRun) countEl.textContent = `Carregando status… ${d}/${t}`;
+      });
+      if (run !== filterRun) return;
+      const k = Number(statK);
+      const val = (p) => {
+        const s = idx[p.name];
+        if (!s) return null;
+        return k === 6 ? s.reduce((a, b) => a + b, 0) : s[k];
+      };
+      sortInfo = { k, val };
+      filtered = filtered.filter(p => val(p) != null)
+        .sort((a, b) => dir === "asc" ? val(a) - val(b) || a.id - b.id : val(b) - val(a) || a.id - b.id);
+    }
+
     shown = 0;
     $("#grid").innerHTML = "";
-    $("#count").textContent = `${filtered.length} Pokémon`;
+    countEl.textContent = `${filtered.length} Pokémon`;
     renderMore();
   }
 
@@ -45,6 +103,7 @@ window.Pokedex = (function () {
              onerror="this.style.visibility='hidden'">
         <span class="card-name">${cap(p.name)}</span>
         <span class="card-types">${types.map(typeBadge).join("")}</span>
+        ${sortInfo ? `<span class="card-stat">${STAT_LABEL[sortInfo.k]} ${sortInfo.val(p)}</span>` : ""}
         <span class="card-add" title="Adicionar ao time" data-add="${p.name}">＋</span>
       </button>`;
   }
@@ -362,6 +421,26 @@ window.Pokedex = (function () {
     $("#search").addEventListener("input", debounce(applyFilters, 200));
     $("#filter-type").addEventListener("change", applyFilters);
     $("#filter-gen").addEventListener("change", applyFilters);
+    $("#filter-ability").addEventListener("change", applyFilters);
+    $("#filter-move").addEventListener("change", applyFilters);
+    $("#sort-stat").addEventListener("change", applyFilters);
+    $("#sort-dir").addEventListener("change", applyFilters);
+    $("#filter-clear").addEventListener("click", () => {
+      ["#search", "#filter-type", "#filter-gen", "#filter-ability", "#filter-move", "#sort-stat"]
+        .forEach(s => { $(s).value = ""; });
+      $("#sort-dir").value = "desc";
+      applyFilters();
+    });
+    // autocompletar habilidades (com nome PT curado) e golpes — em segundo plano
+    window.API.getAbilityNames().then(names => {
+      $("#dl-abilities").innerHTML = names.map(n => {
+        const pt = window.ABILITY_PT && window.ABILITY_PT[n];
+        return `<option value="${n.replace(/-/g, " ")}">${pt ? pt.pt : ""}</option>`;
+      }).join("");
+    }).catch(() => {});
+    window.API.getMoveNames().then(names => {
+      $("#dl-moves").innerHTML = names.map(n => `<option value="${n.replace(/-/g, " ")}">`).join("");
+    }).catch(() => {});
     $("#load-more").addEventListener("click", renderMore);
 
     // clique nos cards (delegação): abrir ficha ou adicionar ao time

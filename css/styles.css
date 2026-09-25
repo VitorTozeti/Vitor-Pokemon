@@ -193,6 +193,9 @@ main{max-width:1220px; margin:0 auto; padding:22px}
 .filters input{flex:1; min-width:220px}
 .filters input:focus,.filters select:focus{outline:none; border-color:var(--accent-line); box-shadow:var(--ring)}
 .count{color:var(--muted); font-size:13px; margin-left:auto}
+.filters input.filter-sm{flex:0 1 190px; min-width:150px}
+.card-stat{font-size:12px; font-weight:700; color:var(--accent); background:var(--panel-2); border:1px solid var(--line); padding:1px 8px; border-radius:999px}
+.count.error{color:#DC2626}
 
 /* ---- grid de cards ---- */
 .grid{
